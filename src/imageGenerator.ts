@@ -14,6 +14,8 @@ export interface Resolution {
   height: number;
 }
 
+export type ResolutionKey = '512' | '1024' | '1536' | '4MP' | '8MP' | '12MP';
+
 export type PatternType = 
   // Basic patterns
   | 'noise' 
@@ -74,6 +76,9 @@ export type PatternType =
 
 export class ImageGenerator {
   private resolutions: Record<string, Resolution> = {
+    '512': { width: 512, height: 512 },     // 0.26 megapixels
+    '1024': { width: 1024, height: 1024 },  // 1 megapixel
+    '1536': { width: 1536, height: 1536 },  // 2.36 megapixels
     '4MP': { width: 2048, height: 1952 },   // ~4 megapixels
     '8MP': { width: 2896, height: 2760 },   // ~8 megapixels  
     '12MP': { width: 3456, height: 3456 }   // ~12 megapixels
@@ -82,9 +87,9 @@ export class ImageGenerator {
   /**
    * Generates a random black and white image on the provided canvas
    * @param canvas The HTML canvas element to draw on
-   * @param resolutionKey The resolution key ('4MP', '8MP', or '12MP')
+   * @param resolutionKey The resolution key
    */
-  generateRandomImage(canvas: HTMLCanvasElement, resolutionKey: '4MP' | '8MP' | '12MP'): void {
+  generateRandomImage(canvas: HTMLCanvasElement, resolutionKey: ResolutionKey): void {
     const resolution = this.resolutions[resolutionKey];
     const ctx = canvas.getContext('2d');
     
@@ -130,7 +135,7 @@ export class ImageGenerator {
    */
   generatePatternImage(
     canvas: HTMLCanvasElement, 
-    resolutionKey: '4MP' | '8MP' | '12MP',
+    resolutionKey: ResolutionKey,
     pattern: PatternType = 'noise',
     isColorMode: boolean = false
   ): void {
@@ -318,6 +323,51 @@ export class ImageGenerator {
 
     ctx.putImageData(imageData, 0, 0);
     this.scaleCanvasDisplay(canvas, resolution);
+  }
+
+  /**
+   * Async wrapper for pattern generation to prevent UI blocking
+   * @param canvas The HTML canvas element to draw on
+   * @param resolutionKey The resolution key
+   * @param pattern The pattern type to generate
+   * @param isColorMode Whether to generate in color mode
+   * @param onProgress Optional progress callback
+   */
+  async generatePatternImageAsync(
+    canvas: HTMLCanvasElement, 
+    resolutionKey: ResolutionKey,
+    pattern: PatternType = 'noise',
+    isColorMode: boolean = false,
+    onProgress?: (progress: number) => void
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Report initial progress
+      if (onProgress) onProgress(0.1);
+      
+      // Use setTimeout to yield control to the browser
+      setTimeout(() => {
+        try {
+          if (onProgress) onProgress(0.3);
+          
+          // Use another timeout to break up the work further
+          setTimeout(() => {
+            try {
+              if (onProgress) onProgress(0.6);
+              
+              // Generate the image using the existing sync method
+              this.generatePatternImage(canvas, resolutionKey, pattern, isColorMode);
+              
+              if (onProgress) onProgress(1.0);
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          }, 10);
+        } catch (error) {
+          reject(error);
+        }
+      }, 10);
+    });
   }
 
   /**

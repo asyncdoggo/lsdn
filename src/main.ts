@@ -1,5 +1,5 @@
 import './style.css'
-import { ImageGenerator, type PatternType } from './imageGenerator'
+import { ImageGenerator, type PatternType, type ResolutionKey } from './imageGenerator'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="app-container">
@@ -13,7 +13,10 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <div class="resolution-section">
           <h3>Resolution</h3>
           <div class="resolution-buttons">
-            <button class="resolution-btn active" data-resolution="4MP">4MP</button>
+            <button class="resolution-btn" data-resolution="512">512px</button>
+            <button class="resolution-btn" data-resolution="1024">1024px</button>
+            <button class="resolution-btn active" data-resolution="1536">1536px</button>
+            <button class="resolution-btn" data-resolution="4MP">4MP</button>
             <button class="resolution-btn" data-resolution="8MP">8MP</button>
             <button class="resolution-btn" data-resolution="12MP">12MP</button>
           </div>
@@ -412,7 +415,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <canvas id="imageCanvas"></canvas>
           <div class="canvas-overlay hidden">
             <div class="loading-spinner"></div>
-            <p>Generating...</p>
+            <p class="loading-text">Generating...</p>
           </div>
         </div>
       </div>
@@ -423,7 +426,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 const imageGenerator = new ImageGenerator()
 
 // State management
-let currentResolution: '4MP' | '8MP' | '12MP' = '4MP';
+let currentResolution: ResolutionKey = '1536';
 let currentPattern: PatternType = 'noise';
 let isColorMode: boolean = false;
 
@@ -432,6 +435,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('#imageCanvas')!
 const generateBtn = document.querySelector<HTMLButtonElement>('#generate')!
 const downloadBtn = document.querySelector<HTMLButtonElement>('#download')!
 const canvasOverlay = document.querySelector('.canvas-overlay') as HTMLDivElement;
+const loadingText = document.querySelector('.loading-text') as HTMLParagraphElement;
 
 // Resolution buttons
 const resolutionButtons = document.querySelectorAll('.resolution-btn');
@@ -439,7 +443,7 @@ resolutionButtons.forEach(btn => {
   btn.addEventListener('click', () => {
     resolutionButtons.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    currentResolution = btn.getAttribute('data-resolution') as '4MP' | '8MP' | '12MP';
+    currentResolution = btn.getAttribute('data-resolution') as ResolutionKey;
   });
 });
 
@@ -501,24 +505,39 @@ patternCards.forEach(card => {
 });
 
 // Generate button
-generateBtn.addEventListener('click', () => {
+generateBtn.addEventListener('click', async () => {
+  if (generateBtn.disabled) return; // Prevent double-clicks
+  
   generateBtn.disabled = true;
   downloadBtn.disabled = true;
   canvasOverlay.classList.remove('hidden');
   
-  // Use setTimeout to allow UI to update before heavy computation
-  setTimeout(() => {
-    try {
-      imageGenerator.generatePatternImage(canvas, currentResolution, currentPattern, isColorMode);
-      downloadBtn.disabled = false;
-    } catch (error) {
-      console.error('Error generating image:', error);
-      alert('Error generating image. Please try again.');
-    } finally {
-      generateBtn.disabled = false;
-      canvasOverlay.classList.add('hidden');
-    }
-  }, 100);
+  // Update loading text
+  if (loadingText) loadingText.textContent = 'Generating...';
+  
+  // Update button text to show it's generating
+  const btnText = generateBtn.querySelector('.btn-text');
+  const originalText = btnText?.textContent || 'Generate';
+  if (btnText) btnText.textContent = 'Generating...';
+  
+  try {
+    // Use the new async method without progress callback
+    await imageGenerator.generatePatternImageAsync(
+      canvas, 
+      currentResolution, 
+      currentPattern, 
+      isColorMode
+    );
+    
+    downloadBtn.disabled = false;
+  } catch (error) {
+    console.error('Error generating image:', error);
+    alert('Error generating image. Please try again.');
+  } finally {
+    generateBtn.disabled = false;
+    canvasOverlay.classList.add('hidden');
+    if (btnText) btnText.textContent = originalText;
+  }
 });
 
 // Download button
