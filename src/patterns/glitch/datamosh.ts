@@ -66,18 +66,22 @@ export class DatamoshPattern {
   }
 
   /**
-   * Macroblock shifting - simulate P-frame compression errors
+   * Macroblock shifting - simulate P-frame compression errors (optimized)
    */
   private static applyMacroblockShift(data: Uint8ClampedArray, width: number, height: number): void {
     const blockSize = 8 + Math.floor(Math.random() * 8); // 8x8 to 16x16 macroblocks
-    const corruptionRate = 0.1 + Math.random() * 0.3;
+    const corruptionRate = 0.05 + Math.random() * 0.15; // Reduced rate
+    const maxBlocks = Math.min(100, (width * height) / (blockSize * blockSize * 5)); // Limit iterations
     
-    for (let blockY = 0; blockY < height; blockY += blockSize) {
-      for (let blockX = 0; blockX < width; blockX += blockSize) {
+    let blocksProcessed = 0;
+    for (let blockY = 0; blockY < height && blocksProcessed < maxBlocks; blockY += blockSize) {
+      for (let blockX = 0; blockX < width && blocksProcessed < maxBlocks; blockX += blockSize) {
         if (Math.random() < corruptionRate) {
-          // Random displacement vector
-          const displaceX = Math.floor((Math.random() - 0.5) * width * 0.3);
-          const displaceY = Math.floor((Math.random() - 0.5) * height * 0.1);
+          blocksProcessed++;
+          
+          // Random displacement vector (reduced range)
+          const displaceX = Math.floor((Math.random() - 0.5) * width * 0.1);
+          const displaceY = Math.floor((Math.random() - 0.5) * height * 0.05);
           
           // Copy block from displaced location
           for (let y = 0; y < blockSize && blockY + y < height; y++) {
@@ -89,9 +93,9 @@ export class DatamoshPattern {
               const targetIndex = ((blockY + y) * width + (blockX + x)) * 4;
               
               // Copy with some degradation
-              data[targetIndex] = Math.max(0, Math.min(255, data[sourceIndex] + (Math.random() - 0.5) * 30));
-              data[targetIndex + 1] = Math.max(0, Math.min(255, data[sourceIndex + 1] + (Math.random() - 0.5) * 20));
-              data[targetIndex + 2] = Math.max(0, Math.min(255, data[sourceIndex + 2] + (Math.random() - 0.5) * 25));
+              data[targetIndex] = Math.max(0, Math.min(255, data[sourceIndex] + (Math.random() - 0.5) * 20));
+              data[targetIndex + 1] = Math.max(0, Math.min(255, data[sourceIndex + 1] + (Math.random() - 0.5) * 15));
+              data[targetIndex + 2] = Math.max(0, Math.min(255, data[sourceIndex + 2] + (Math.random() - 0.5) * 20));
             }
           }
         }
@@ -130,37 +134,40 @@ export class DatamoshPattern {
   }
 
   /**
-   * Motion vector glitches
+   * Motion vector glitches (optimized)
    */
   private static applyMotionVectorGlitch(data: Uint8ClampedArray, width: number, height: number): void {
-    const numVectors = 20 + Math.floor(Math.random() * 40);
+    const numVectors = Math.min(30, (width * height) / 10000); // Scale with image size, max 30
     
     for (let vector = 0; vector < numVectors; vector++) {
       const centerX = Math.floor(Math.random() * width);
       const centerY = Math.floor(Math.random() * height);
-      const radius = 10 + Math.floor(Math.random() * 50);
-      const motionX = (Math.random() - 0.5) * 100;
-      const motionY = (Math.random() - 0.5) * 30;
+      const radius = 10 + Math.floor(Math.random() * 30); // Reduced max radius
+      const motionX = (Math.random() - 0.5) * 50; // Reduced motion range
+      const motionY = (Math.random() - 0.5) * 20;
       
-      for (let y = centerY - radius; y < centerY + radius && y < height; y++) {
-        for (let x = centerX - radius; x < centerX + radius && x < width; x++) {
-          if (x >= 0 && y >= 0) {
-            const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
-            if (distance < radius) {
-              const sourceX = Math.max(0, Math.min(width - 1, Math.floor(x + motionX * (1 - distance / radius))));
-              const sourceY = Math.max(0, Math.min(height - 1, Math.floor(y + motionY * (1 - distance / radius))));
-              
-              const sourceIndex = (sourceY * width + sourceX) * 4;
-              const targetIndex = (y * width + x) * 4;
-              
-              const blend = 0.5 + Math.random() * 0.3;
-              data[targetIndex] = Math.max(0, Math.min(255, 
-                data[targetIndex] * (1 - blend) + data[sourceIndex] * blend));
-              data[targetIndex + 1] = Math.max(0, Math.min(255, 
-                data[targetIndex + 1] * (1 - blend) + data[sourceIndex + 1] * blend));
-              data[targetIndex + 2] = Math.max(0, Math.min(255, 
-                data[targetIndex + 2] * (1 - blend) + data[sourceIndex + 2] * blend));
-            }
+      const minX = Math.max(0, centerX - radius);
+      const maxX = Math.min(width - 1, centerX + radius);
+      const minY = Math.max(0, centerY - radius);
+      const maxY = Math.min(height - 1, centerY + radius);
+      
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+          if (distance < radius) {
+            const sourceX = Math.max(0, Math.min(width - 1, Math.floor(x + motionX * (1 - distance / radius))));
+            const sourceY = Math.max(0, Math.min(height - 1, Math.floor(y + motionY * (1 - distance / radius))));
+            
+            const sourceIndex = (sourceY * width + sourceX) * 4;
+            const targetIndex = (y * width + x) * 4;
+            
+            const blend = 0.5 + Math.random() * 0.2; // Reduced blend variation
+            data[targetIndex] = Math.max(0, Math.min(255, 
+              data[targetIndex] * (1 - blend) + data[sourceIndex] * blend));
+            data[targetIndex + 1] = Math.max(0, Math.min(255, 
+              data[targetIndex + 1] * (1 - blend) + data[sourceIndex + 1] * blend));
+            data[targetIndex + 2] = Math.max(0, Math.min(255, 
+              data[targetIndex + 2] * (1 - blend) + data[sourceIndex + 2] * blend));
           }
         }
       }
@@ -201,26 +208,57 @@ export class DatamoshPattern {
   }
 
   /**
-   * Combined datamosh effects
+   * Combined datamosh effects - optimized version
    */
   private static applyCombinedDatamosh(data: Uint8ClampedArray, width: number, height: number): void {
-    // Apply multiple effects with reduced intensity
-    this.applyMacroblockShift(data, width, height);
+    // Create lightweight combined effect instead of calling heavy methods
+    const blockSize = 16;
+    const maxBlocks = Math.min(50, (width * height) / (blockSize * blockSize * 10)); // Limit iterations
     
-    // Reduce intensity for second pass
-    for (let i = 0; i < data.length; i += 4) {
-      const backup = [data[i], data[i + 1], data[i + 2]];
+    for (let block = 0; block < maxBlocks; block++) {
+      const blockX = Math.floor(Math.random() * (width - blockSize));
+      const blockY = Math.floor(Math.random() * (height - blockSize));
       
-      // Apply P-frame corruption with reduced effect
-      if (Math.random() < 0.3) {
-        this.applyMotionVectorGlitch(data, width, height);
+      // Simple displacement effect
+      const displaceX = Math.floor((Math.random() - 0.5) * 40);
+      const displaceY = Math.floor((Math.random() - 0.5) * 10);
+      
+      for (let y = 0; y < blockSize; y++) {
+        for (let x = 0; x < blockSize; x++) {
+          const targetX = blockX + x;
+          const targetY = blockY + y;
+          const sourceX = Math.max(0, Math.min(width - 1, targetX + displaceX));
+          const sourceY = Math.max(0, Math.min(height - 1, targetY + displaceY));
+          
+          const sourceIndex = (sourceY * width + sourceX) * 4;
+          const targetIndex = (targetY * width + targetX) * 4;
+          
+          // Simple blend with noise
+          const blend = 0.6 + Math.random() * 0.3;
+          const noise = (Math.random() - 0.5) * 20;
+          
+          data[targetIndex] = Math.max(0, Math.min(255, data[sourceIndex] * blend + data[targetIndex] * (1 - blend) + noise));
+          data[targetIndex + 1] = Math.max(0, Math.min(255, data[sourceIndex + 1] * blend + data[targetIndex + 1] * (1 - blend) + noise));
+          data[targetIndex + 2] = Math.max(0, Math.min(255, data[sourceIndex + 2] * blend + data[targetIndex + 2] * (1 - blend) + noise));
+        }
       }
+    }
+    
+    // Add some horizontal strips for datamosh feel
+    const numStrips = Math.min(10, height / 20);
+    for (let strip = 0; strip < numStrips; strip++) {
+      const y = Math.floor(Math.random() * height);
+      const shift = Math.floor((Math.random() - 0.5) * width * 0.2);
       
-      // Blend with original
-      const blendRatio = 0.7;
-      data[i] = backup[0] * blendRatio + data[i] * (1 - blendRatio);
-      data[i + 1] = backup[1] * blendRatio + data[i + 1] * (1 - blendRatio);
-      data[i + 2] = backup[2] * blendRatio + data[i + 2] * (1 - blendRatio);
+      for (let x = 0; x < width; x++) {
+        const sourceX = Math.max(0, Math.min(width - 1, x + shift));
+        const sourceIndex = (y * width + sourceX) * 4;
+        const targetIndex = (y * width + x) * 4;
+        
+        data[targetIndex] = Math.max(0, Math.min(255, data[sourceIndex] + (Math.random() - 0.5) * 15));
+        data[targetIndex + 1] = Math.max(0, Math.min(255, data[sourceIndex + 1] + (Math.random() - 0.5) * 15));
+        data[targetIndex + 2] = Math.max(0, Math.min(255, data[sourceIndex + 2] + (Math.random() - 0.5) * 15));
+      }
     }
   }
 

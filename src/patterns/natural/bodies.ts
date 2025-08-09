@@ -2,439 +2,310 @@ import type { Resolution } from '../../imageGenerator';
 
 export class BodiesPattern {
   /**
-   * Generates a single detailed human body figure with proper proportions
+   * Generates simple abstract human figure patterns
    */
   static generate(data: Uint8ClampedArray, resolution: Resolution): void {
     // Initialize to light background
     for (let i = 0; i < data.length; i += 4) {
-      data[i] = 248;
-      data[i + 1] = 246;
-      data[i + 2] = 242;
+      data[i] = 245;
+      data[i + 1] = 245;
+      data[i + 2] = 245;
       data[i + 3] = 255;
     }
 
-    // Center the figure with appropriate sizing
-    const figureHeight = Math.min(resolution.width, resolution.height) * 0.8;
-    const figureWidth = figureHeight * 0.3; // Realistic body proportions
+    // Create multiple simple figure abstractions across the canvas
+    const figureHeight = Math.max(80, Math.min(200, Math.floor(Math.sqrt(resolution.width * resolution.height) / 8)));
+    const figureWidth = figureHeight * 0.4;
+    const numFiguresX = Math.floor(resolution.width / (figureWidth * 2));
+    const numFiguresY = Math.floor(resolution.height / (figureHeight * 1.2));
+    
+    // Limit total figures for performance
+    const maxFigures = 15;
+    if (numFiguresX * numFiguresY > maxFigures) {
+      this.generateSingleFigure(data, resolution);
+      return;
+    }
+    
+    for (let row = 0; row < numFiguresY; row++) {
+      for (let col = 0; col < numFiguresX; col++) {
+        const centerX = (col + 0.5) * (figureWidth * 2);
+        const centerY = (row + 0.5) * (figureHeight * 1.2);
+        
+        const figureType = Math.floor(Math.random() * 3);
+        this.drawSimpleFigure(data, resolution, centerX, centerY, figureWidth, figureHeight, figureType);
+      }
+    }
+  }
+
+  /**
+   * Generate a single large figure for high resolutions
+   */
+  private static generateSingleFigure(data: Uint8ClampedArray, resolution: Resolution): void {
     const centerX = resolution.width / 2;
     const centerY = resolution.height / 2;
+    const figureHeight = Math.min(resolution.width, resolution.height) * 0.6;
+    const figureWidth = figureHeight * 0.3;
     
-    // Choose a random pose/style
-    const bodyStyle = Math.floor(Math.random() * 3);
-    
-    // Draw the complete figure
-    this.drawDetailedFigure(data, resolution, centerX, centerY, figureWidth, figureHeight, bodyStyle);
+    this.drawSimpleFigure(data, resolution, centerX, centerY, figureWidth, figureHeight, Math.floor(Math.random() * 3));
   }
 
   /**
-   * Draw a complete detailed human figure
+   * Draw a simple abstract human figure
    */
-  private static drawDetailedFigure(
+  private static drawSimpleFigure(
     data: Uint8ClampedArray, 
     resolution: Resolution, 
     centerX: number, 
     centerY: number, 
-    width: number, 
+    width: number,
     height: number,
-    style: number
+    type: number
   ): void {
-    // Standard human proportions (8 heads tall)
-    const headHeight = height / 8;
-    const headWidth = headHeight * 0.7;
+    // Simple proportions (8 heads tall)
+    const headSize = height / 8;
+    const headY = centerY - height * 0.375;
+    const shoulderY = headY + headSize * 1.5;
+    const waistY = centerY - headSize;
+    const hipY = centerY + headSize;
+    const footY = centerY + height * 0.375;
     
-    // Body parts positioning
-    const headY = centerY - height * 0.375; // Top of figure
-    const neckY = headY + headHeight;
-    const shoulderY = neckY + headHeight * 0.25;
-    const chestY = shoulderY + headHeight * 0.5;
-    const waistY = centerY - headHeight * 0.5;
-    const hipY = centerY + headHeight * 0.25;
-    const ankleY = centerY + height * 0.375;
+    // Head (simple circle)
+    this.drawCircle(data, resolution, centerX, headY, headSize * 0.5, 80);
     
-    // Draw each body part
-    this.drawHead(data, resolution, centerX, headY, headWidth, headHeight);
-    this.drawNeck(data, resolution, centerX, neckY, headWidth * 0.4, headHeight * 0.25);
-    this.drawTorso(data, resolution, centerX, shoulderY, waistY, width);
-    this.drawArms(data, resolution, centerX, shoulderY, chestY, width, style);
-    this.drawLegs(data, resolution, centerX, hipY, ankleY, width * 0.6, style);
-    
-    // Add clothing/details based on style
-    this.addClothing(data, resolution, centerX, shoulderY, waistY, hipY, width, style);
+    // Body (simple rectangle or shapes based on type)
+    switch (type) {
+      case 0: // Stick figure
+        this.drawStickFigure(data, resolution, centerX, shoulderY, waistY, hipY, footY, width);
+        break;
+      case 1: // Simple geometric figure
+        this.drawGeometricFigure(data, resolution, centerX, shoulderY, waistY, hipY, footY, width);
+        break;
+      case 2: // Abstract figure
+        this.drawAbstractFigure(data, resolution, centerX, shoulderY, waistY, hipY, footY, width);
+        break;
+    }
   }
 
   /**
-   * Draw detailed head
+   * Draw a stick figure
    */
-  private static drawHead(
+  private static drawStickFigure(
+    data: Uint8ClampedArray, 
+    resolution: Resolution, 
+    centerX: number, 
+    shoulderY: number, 
+    _waistY: number, 
+    hipY: number, 
+    footY: number,
+    width: number
+  ): void {
+    // Torso (vertical line)
+    this.drawVerticalLine(data, resolution, centerX, shoulderY, hipY, 80);
+    
+    // Arms (horizontal line)
+    const armSpread = width * 0.6;
+    const armY = shoulderY + (hipY - shoulderY) * 0.2;
+    this.drawHorizontalLine(data, resolution, centerX - armSpread, centerX + armSpread, armY, 80);
+    
+    // Legs (diagonal lines)
+    const legSpread = width * 0.4;
+    this.drawLine(data, resolution, centerX, hipY, centerX - legSpread, footY, 80);
+    this.drawLine(data, resolution, centerX, hipY, centerX + legSpread, footY, 80);
+    
+    // Hands (small circles)
+    this.drawFilledCircle(data, resolution, centerX - armSpread, armY, 3, 70);
+    this.drawFilledCircle(data, resolution, centerX + armSpread, armY, 3, 70);
+    
+    // Feet (small rectangles)
+    this.drawHorizontalLine(data, resolution, centerX - legSpread - 5, centerX - legSpread + 5, footY, 70);
+    this.drawHorizontalLine(data, resolution, centerX + legSpread - 5, centerX + legSpread + 5, footY, 70);
+  }
+
+  /**
+   * Draw a geometric figure
+   */
+  private static drawGeometricFigure(
+    data: Uint8ClampedArray, 
+    resolution: Resolution, 
+    centerX: number, 
+    shoulderY: number, 
+    _waistY: number, 
+    hipY: number, 
+    footY: number,
+    width: number
+  ): void {
+    // Torso (rectangle)
+    const torsoWidth = width * 0.6;
+    this.drawRectangle(data, resolution, centerX, (shoulderY + hipY) / 2, torsoWidth, hipY - shoulderY, 90);
+    
+    // Arms (rectangles)
+    const armWidth = width * 0.15;
+    const armLength = _waistY - shoulderY;
+    this.drawRectangle(data, resolution, centerX - torsoWidth/2 - armWidth, shoulderY + armLength/2, armWidth, armLength, 90);
+    this.drawRectangle(data, resolution, centerX + torsoWidth/2 + armWidth, shoulderY + armLength/2, armWidth, armLength, 90);
+    
+    // Legs (rectangles)
+    const legWidth = width * 0.2;
+    const legLength = footY - hipY;
+    this.drawRectangle(data, resolution, centerX - legWidth, hipY + legLength/2, legWidth, legLength, 90);
+    this.drawRectangle(data, resolution, centerX + legWidth, hipY + legLength/2, legWidth, legLength, 90);
+  }
+
+  /**
+   * Draw an abstract figure
+   */
+  private static drawAbstractFigure(
+    data: Uint8ClampedArray, 
+    resolution: Resolution, 
+    centerX: number, 
+    shoulderY: number, 
+    _waistY: number, 
+    hipY: number, 
+    footY: number,
+    width: number
+  ): void {
+    // Torso (oval)
+    const torsoWidth = width * 0.5;
+    const torsoHeight = hipY - shoulderY;
+    this.drawOval(data, resolution, centerX, (shoulderY + hipY) / 2, torsoWidth, torsoHeight, 100);
+    
+    // Arms (curved lines or ovals)
+    const armRadius = width * 0.1;
+    this.drawOval(data, resolution, centerX - torsoWidth/2 - armRadius, shoulderY + torsoHeight/3, armRadius, torsoHeight/3, 100);
+    this.drawOval(data, resolution, centerX + torsoWidth/2 + armRadius, shoulderY + torsoHeight/3, armRadius, torsoHeight/3, 100);
+    
+    // Legs (ovals)
+    const legWidth = width * 0.15;
+    const legHeight = (footY - hipY) * 0.8;
+    this.drawOval(data, resolution, centerX - legWidth, hipY + legHeight/2, legWidth, legHeight, 100);
+    this.drawOval(data, resolution, centerX + legWidth, hipY + legHeight/2, legWidth, legHeight, 100);
+  }
+
+  /**
+   * Draw a simple circle outline
+   */
+  private static drawCircle(
+    data: Uint8ClampedArray, 
+    resolution: Resolution, 
+    centerX: number, 
+    centerY: number, 
+    radius: number, 
+    value: number
+  ): void {
+    const radiusInt = Math.round(radius);
+    for (let angle = 0; angle < Math.PI * 2; angle += 0.3) {
+      const x = Math.round(centerX + Math.cos(angle) * radiusInt);
+      const y = Math.round(centerY + Math.sin(angle) * radiusInt);
+      this.setPixel(data, resolution, x, y, value);
+    }
+  }
+
+  /**
+   * Draw a filled circle
+   */
+  private static drawFilledCircle(
+    data: Uint8ClampedArray, 
+    resolution: Resolution, 
+    centerX: number, 
+    centerY: number, 
+    radius: number, 
+    value: number
+  ): void {
+    const radiusInt = Math.round(radius);
+    for (let y = -radiusInt; y <= radiusInt; y++) {
+      for (let x = -radiusInt; x <= radiusInt; x++) {
+        if (x * x + y * y <= radiusInt * radiusInt) {
+          this.setPixel(data, resolution, centerX + x, centerY + y, value);
+        }
+      }
+    }
+  }
+
+  /**
+   * Draw a rectangle outline
+   */
+  private static drawRectangle(
     data: Uint8ClampedArray, 
     resolution: Resolution, 
     centerX: number, 
     centerY: number, 
     width: number, 
-    height: number
+    height: number, 
+    value: number
   ): void {
     const halfWidth = width / 2;
     const halfHeight = height / 2;
     
-    // Head outline (oval shape)
-    for (let angle = 0; angle < Math.PI * 2; angle += 0.02) {
-      const x = Math.round(centerX + Math.cos(angle) * halfWidth);
-      const y = Math.round(centerY + Math.sin(angle) * halfHeight);
-      this.setPixel(data, resolution, x, y, 80);
-    }
+    // Top and bottom lines
+    this.drawHorizontalLine(data, resolution, centerX - halfWidth, centerX + halfWidth, centerY - halfHeight, value);
+    this.drawHorizontalLine(data, resolution, centerX - halfWidth, centerX + halfWidth, centerY + halfHeight, value);
     
-    // Simple facial features
-    const eyeY = centerY - halfHeight * 0.2;
-    const eyeSpacing = halfWidth * 0.4;
-    
-    // Eyes (small dots)
-    this.drawThickPoint(data, resolution, centerX - eyeSpacing, eyeY, 2, 50);
-    this.drawThickPoint(data, resolution, centerX + eyeSpacing, eyeY, 2, 50);
-    
-    // Nose (small line)
-    for (let y = eyeY + halfHeight * 0.2; y < eyeY + halfHeight * 0.4; y++) {
-      this.setPixel(data, resolution, centerX, y, 70);
-    }
-    
-    // Mouth (curve)
-    const mouthY = centerY + halfHeight * 0.3;
-    for (let x = centerX - halfWidth * 0.3; x <= centerX + halfWidth * 0.3; x++) {
-      const curve = Math.sin((x - centerX + halfWidth * 0.3) / (halfWidth * 0.6) * Math.PI) * halfHeight * 0.1;
-      this.setPixel(data, resolution, x, mouthY - curve, 60);
-    }
+    // Left and right lines
+    this.drawVerticalLine(data, resolution, centerX - halfWidth, centerY - halfHeight, centerY + halfHeight, value);
+    this.drawVerticalLine(data, resolution, centerX + halfWidth, centerY - halfHeight, centerY + halfHeight, value);
   }
 
   /**
-   * Draw neck
+   * Draw an oval outline
    */
-  private static drawNeck(
+  private static drawOval(
     data: Uint8ClampedArray, 
     resolution: Resolution, 
     centerX: number, 
     centerY: number, 
-    width: number, 
-    height: number
+    radiusX: number, 
+    radiusY: number, 
+    value: number
   ): void {
-    const halfWidth = width / 2;
-    
-    // Simple rectangular neck
-    for (let y = centerY; y < centerY + height; y++) {
-      this.setPixel(data, resolution, centerX - halfWidth, y, 80);
-      this.setPixel(data, resolution, centerX + halfWidth, y, 80);
-    }
-    
-    // Neck base
-    for (let x = centerX - halfWidth; x <= centerX + halfWidth; x++) {
-      this.setPixel(data, resolution, x, centerY + height, 80);
+    for (let angle = 0; angle < Math.PI * 2; angle += 0.2) {
+      const x = Math.round(centerX + Math.cos(angle) * radiusX);
+      const y = Math.round(centerY + Math.sin(angle) * radiusY);
+      this.setPixel(data, resolution, x, y, value);
     }
   }
 
   /**
-   * Draw torso with different poses
+   * Draw a horizontal line
    */
-  private static drawTorso(
+  private static drawHorizontalLine(
     data: Uint8ClampedArray, 
     resolution: Resolution, 
-    centerX: number, 
-    shoulderY: number, 
-    waistY: number, 
-    width: number
+    x1: number, 
+    x2: number, 
+    y: number, 
+    value: number
   ): void {
-    const shoulderWidth = width;
-    const waistWidth = width * 0.7;
+    const startX = Math.round(Math.min(x1, x2));
+    const endX = Math.round(Math.max(x1, x2));
+    const lineY = Math.round(y);
     
-    // Left side of torso
-    const leftShoulderX = centerX - shoulderWidth / 2;
-    const leftWaistX = centerX - waistWidth / 2;
-    
-    for (let y = shoulderY; y <= waistY; y++) {
-      const t = (y - shoulderY) / (waistY - shoulderY);
-      const x = leftShoulderX + (leftWaistX - leftShoulderX) * t;
-      this.setPixel(data, resolution, x, y, 80);
-    }
-    
-    // Right side of torso
-    const rightShoulderX = centerX + shoulderWidth / 2;
-    const rightWaistX = centerX + waistWidth / 2;
-    
-    for (let y = shoulderY; y <= waistY; y++) {
-      const t = (y - shoulderY) / (waistY - shoulderY);
-      const x = rightShoulderX + (rightWaistX - rightShoulderX) * t;
-      this.setPixel(data, resolution, x, y, 80);
-    }
-    
-    // Shoulder line
-    for (let x = leftShoulderX; x <= rightShoulderX; x++) {
-      this.setPixel(data, resolution, x, shoulderY, 80);
-    }
-    
-    // Waist line
-    for (let x = leftWaistX; x <= rightWaistX; x++) {
-      this.setPixel(data, resolution, x, waistY, 80);
+    for (let x = startX; x <= endX; x++) {
+      this.setPixel(data, resolution, x, lineY, value);
     }
   }
 
   /**
-   * Draw arms with different positions based on style
+   * Draw a vertical line
    */
-  private static drawArms(
+  private static drawVerticalLine(
     data: Uint8ClampedArray, 
     resolution: Resolution, 
-    centerX: number, 
-    shoulderY: number, 
-    torsoEndY: number, 
-    bodyWidth: number,
-    style: number
+    x: number, 
+    y1: number, 
+    y2: number, 
+    value: number
   ): void {
-    const shoulderHalfWidth = bodyWidth / 2;
-    const armLength = (torsoEndY - shoulderY) * 1.2;
+    const startY = Math.round(Math.min(y1, y2));
+    const endY = Math.round(Math.max(y1, y2));
+    const lineX = Math.round(x);
     
-    // Left arm
-    let leftArmEndX = centerX - shoulderHalfWidth - armLength * 0.3;
-    let leftArmEndY = shoulderY + armLength;
-    
-    // Right arm  
-    let rightArmEndX = centerX + shoulderHalfWidth + armLength * 0.3;
-    let rightArmEndY = shoulderY + armLength;
-    
-    // Different arm positions based on style
-    switch (style) {
-      case 0: // Arms at sides
-        leftArmEndX = centerX - shoulderHalfWidth - armLength * 0.2;
-        rightArmEndX = centerX + shoulderHalfWidth + armLength * 0.2;
-        break;
-      case 1: // Arms crossed
-        leftArmEndX = centerX + bodyWidth * 0.2;
-        leftArmEndY = shoulderY + armLength * 0.6;
-        rightArmEndX = centerX - bodyWidth * 0.2;
-        rightArmEndY = shoulderY + armLength * 0.6;
-        break;
-      case 2: // One arm raised
-        leftArmEndX = centerX - shoulderHalfWidth - armLength * 0.5;
-        leftArmEndY = shoulderY - armLength * 0.3;
-        break;
-    }
-    
-    // Draw left arm
-    this.drawLine(data, resolution, 
-      centerX - shoulderHalfWidth, shoulderY,
-      leftArmEndX, leftArmEndY, 80);
-    
-    // Draw right arm
-    this.drawLine(data, resolution,
-      centerX + shoulderHalfWidth, shoulderY,
-      rightArmEndX, rightArmEndY, 80);
-    
-    // Add hands (small circles)
-    this.drawThickPoint(data, resolution, leftArmEndX, leftArmEndY, 3, 70);
-    this.drawThickPoint(data, resolution, rightArmEndX, rightArmEndY, 3, 70);
-  }
-
-  /**
-   * Draw legs with different stances
-   */
-  private static drawLegs(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    centerX: number, 
-    hipY: number, 
-    ankleY: number, 
-    hipWidth: number,
-    style: number
-  ): void {
-    const legLength = ankleY - hipY;
-    const kneeY = hipY + legLength * 0.5;
-    
-    // Hip positions
-    const leftHipX = centerX - hipWidth / 2;
-    const rightHipX = centerX + hipWidth / 2;
-    
-    // Ankle positions (different stances based on style)
-    let leftAnkleX = leftHipX;
-    let rightAnkleX = rightHipX;
-    
-    switch (style) {
-      case 0: // Standing straight
-        leftAnkleX = centerX - hipWidth * 0.3;
-        rightAnkleX = centerX + hipWidth * 0.3;
-        break;
-      case 1: // Wide stance
-        leftAnkleX = centerX - hipWidth * 0.8;
-        rightAnkleX = centerX + hipWidth * 0.8;
-        break;
-      case 2: // One leg forward
-        leftAnkleX = centerX - hipWidth * 0.2;
-        rightAnkleX = centerX + hipWidth * 0.6;
-        break;
-    }
-    
-    // Left leg (hip to knee to ankle)
-    this.drawLine(data, resolution, leftHipX, hipY, leftAnkleX - hipWidth * 0.1, kneeY, 80);
-    this.drawLine(data, resolution, leftAnkleX - hipWidth * 0.1, kneeY, leftAnkleX, ankleY, 80);
-    
-    // Right leg (hip to knee to ankle)
-    this.drawLine(data, resolution, rightHipX, hipY, rightAnkleX + hipWidth * 0.1, kneeY, 80);
-    this.drawLine(data, resolution, rightAnkleX + hipWidth * 0.1, kneeY, rightAnkleX, ankleY, 80);
-    
-    // Add feet (small ovals)
-    this.drawFoot(data, resolution, leftAnkleX, ankleY, hipWidth * 0.15);
-    this.drawFoot(data, resolution, rightAnkleX, ankleY, hipWidth * 0.15);
-  }
-
-  /**
-   * Add clothing details based on style
-   */
-  private static addClothing(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    centerX: number, 
-    shoulderY: number, 
-    waistY: number, 
-    hipY: number, 
-    bodyWidth: number,
-    style: number
-  ): void {
-    switch (style) {
-      case 0: // T-shirt and pants
-        this.drawTShirt(data, resolution, centerX, shoulderY, waistY, bodyWidth);
-        this.drawPants(data, resolution, centerX, waistY, hipY, bodyWidth);
-        break;
-      case 1: // Dress/formal
-        this.drawDress(data, resolution, centerX, shoulderY, hipY, bodyWidth);
-        break;
-      case 2: // Casual/jacket
-        this.drawJacket(data, resolution, centerX, shoulderY, waistY, bodyWidth);
-        this.drawPants(data, resolution, centerX, waistY, hipY, bodyWidth);
-        break;
+    for (let y = startY; y <= endY; y++) {
+      this.setPixel(data, resolution, lineX, y, value);
     }
   }
 
   /**
-   * Draw T-shirt
-   */
-  private static drawTShirt(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    centerX: number, 
-    shoulderY: number, 
-    waistY: number, 
-    bodyWidth: number
-  ): void {
-    const necklineY = shoulderY + (waistY - shoulderY) * 0.1;
-    const neckWidth = bodyWidth * 0.3;
-    
-    // Neckline
-    for (let x = centerX - neckWidth / 2; x <= centerX + neckWidth / 2; x++) {
-      this.setPixel(data, resolution, x, necklineY, 120);
-    }
-    
-    // Hem
-    for (let x = centerX - bodyWidth * 0.35; x <= centerX + bodyWidth * 0.35; x++) {
-      this.setPixel(data, resolution, x, waistY, 120);
-    }
-  }
-
-  /**
-   * Draw pants
-   */
-  private static drawPants(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    centerX: number, 
-    waistY: number, 
-    hipY: number, 
-    bodyWidth: number
-  ): void {
-    // Waistband
-    for (let x = centerX - bodyWidth * 0.35; x <= centerX + bodyWidth * 0.35; x++) {
-      this.setPixel(data, resolution, x, waistY, 100);
-    }
-    
-    // Belt line (slightly below waist)
-    const beltY = waistY + (hipY - waistY) * 0.2;
-    for (let x = centerX - bodyWidth * 0.3; x <= centerX + bodyWidth * 0.3; x++) {
-      this.setPixel(data, resolution, x, beltY, 90);
-    }
-  }
-
-  /**
-   * Draw dress
-   */
-  private static drawDress(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    centerX: number, 
-    shoulderY: number, 
-    hipY: number, 
-    bodyWidth: number
-  ): void {
-    const dressLength = hipY - shoulderY;
-    const hemY = hipY + dressLength * 0.3;
-    
-    // Dress outline (A-line shape)
-    const topWidth = bodyWidth * 0.8;
-    const bottomWidth = bodyWidth * 1.2;
-    
-    for (let y = shoulderY; y <= hemY; y++) {
-      const t = (y - shoulderY) / (hemY - shoulderY);
-      const currentWidth = topWidth + (bottomWidth - topWidth) * t;
-      
-      this.setPixel(data, resolution, centerX - currentWidth / 2, y, 110);
-      this.setPixel(data, resolution, centerX + currentWidth / 2, y, 110);
-    }
-    
-    // Hem line
-    for (let x = centerX - bottomWidth / 2; x <= centerX + bottomWidth / 2; x++) {
-      this.setPixel(data, resolution, x, hemY, 110);
-    }
-  }
-
-  /**
-   * Draw jacket
-   */
-  private static drawJacket(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    centerX: number, 
-    shoulderY: number, 
-    waistY: number, 
-    bodyWidth: number
-  ): void {
-    // Lapels
-    const lapelWidth = bodyWidth * 0.15;
-    const lapelY = shoulderY + (waistY - shoulderY) * 0.3;
-    
-    this.drawLine(data, resolution, centerX - lapelWidth, shoulderY, centerX - lapelWidth / 2, lapelY, 100);
-    this.drawLine(data, resolution, centerX + lapelWidth, shoulderY, centerX + lapelWidth / 2, lapelY, 100);
-    
-    // Buttons
-    const buttonSpacing = (waistY - shoulderY) / 4;
-    for (let i = 1; i <= 3; i++) {
-      const buttonY = shoulderY + buttonSpacing * i;
-      this.drawThickPoint(data, resolution, centerX, buttonY, 1, 80);
-    }
-  }
-
-  /**
-   * Draw foot
-   */
-  private static drawFoot(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    ankleX: number, 
-    ankleY: number, 
-    size: number
-  ): void {
-    // Simple oval foot
-    for (let angle = 0; angle < Math.PI; angle += 0.1) {
-      const x = Math.round(ankleX + Math.cos(angle) * size);
-      const y = Math.round(ankleY + Math.sin(angle) * size * 0.4);
-      this.setPixel(data, resolution, x, y, 70);
-    }
-  }
-
-  /**
-   * Helper function to draw a line between two points
+   * Draw a line between two points
    */
   private static drawLine(
     data: Uint8ClampedArray, 
@@ -451,13 +322,19 @@ export class BodiesPattern {
     const sy = y1 < y2 ? 1 : -1;
     let err = dx - dy;
     
-    let currentX = x1;
-    let currentY = y1;
+    let currentX = Math.round(x1);
+    let currentY = Math.round(y1);
+    const endX = Math.round(x2);
+    const endY = Math.round(y2);
     
-    while (true) {
+    // Limit iterations to prevent infinite loops
+    let iterations = 0;
+    const maxIterations = Math.max(dx, dy) + 1;
+    
+    while (iterations < maxIterations) {
       this.setPixel(data, resolution, currentX, currentY, value);
       
-      if (currentX === x2 && currentY === y2) break;
+      if (currentX === endX && currentY === endY) break;
       
       const e2 = 2 * err;
       if (e2 > -dy) {
@@ -468,26 +345,7 @@ export class BodiesPattern {
         err += dx;
         currentY += sy;
       }
-    }
-  }
-
-  /**
-   * Helper function to draw thick points
-   */
-  private static drawThickPoint(
-    data: Uint8ClampedArray, 
-    resolution: Resolution, 
-    x: number, 
-    y: number, 
-    radius: number, 
-    value: number
-  ): void {
-    for (let dy = -radius; dy <= radius; dy++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        if (dx * dx + dy * dy <= radius * radius) {
-          this.setPixel(data, resolution, x + dx, y + dy, value);
-        }
-      }
+      iterations++;
     }
   }
 
@@ -499,17 +357,17 @@ export class BodiesPattern {
     resolution: Resolution, 
     x: number, 
     y: number, 
-    value: number = 0
+    value: number
   ): void {
     const pixelX = Math.round(x);
     const pixelY = Math.round(y);
     
     if (pixelX >= 0 && pixelX < resolution.width && pixelY >= 0 && pixelY < resolution.height) {
       const index = (pixelY * resolution.width + pixelX) * 4;
-      data[index] = value;     // R
-      data[index + 1] = value; // G
-      data[index + 2] = value; // B
-      data[index + 3] = 255;   // A
+      data[index] = value;
+      data[index + 1] = value;
+      data[index + 2] = value;
+      data[index + 3] = 255;
     }
   }
 }
