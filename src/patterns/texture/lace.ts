@@ -2,7 +2,7 @@ import type { Resolution } from '../../imageGenerator';
 
 export class LacePattern {
   /**
-   * Generates balanced lace patterns with various motifs
+   * Generates optimized lace patterns with performance improvements
    */
   static generate(data: Uint8ClampedArray, resolution: Resolution): void {
     // Initialize to white background
@@ -13,9 +13,19 @@ export class LacePattern {
       data[i + 3] = 255;
     }
 
-    const gridSize = 50 + Math.floor(Math.random() * 30);
+    // Scale grid size based on resolution to prevent performance issues
+    const baseGridSize = Math.max(30, Math.min(80, Math.floor(Math.sqrt(resolution.width * resolution.height) / 50)));
+    const gridSize = baseGridSize + Math.floor(Math.random() * 20);
     const numCellsX = Math.floor(resolution.width / gridSize);
     const numCellsY = Math.floor(resolution.height / gridSize);
+    
+    // Limit the number of cells to prevent browser crashes
+    const maxCells = 400; // Reasonable limit
+    if (numCellsX * numCellsY > maxCells) {
+      // Use simpler pattern for very high resolutions
+      this.generateSimpleLacePattern(data, resolution);
+      return;
+    }
     
     // Create lace pattern with varied motifs
     for (let cellY = 0; cellY < numCellsY; cellY++) {
@@ -23,124 +33,93 @@ export class LacePattern {
         const centerX = cellX * gridSize + gridSize / 2;
         const centerY = cellY * gridSize + gridSize / 2;
         
-        const patternType = Math.floor(Math.random() * 5);
+        const patternType = Math.floor(Math.random() * 3); // Reduced to faster patterns
         
         switch (patternType) {
           case 0:
-            this.drawLaceFlower(data, resolution, centerX, centerY, gridSize * 0.25);
+            this.drawSimpleCross(data, resolution, centerX, centerY, gridSize * 0.3);
             break;
           case 1:
-            this.drawDecorativeCross(data, resolution, centerX, centerY, gridSize * 0.3);
+            this.drawSimpleDiamond(data, resolution, centerX, centerY, gridSize * 0.25);
             break;
           case 2:
-            this.drawDoubleDiamond(data, resolution, centerX, centerY, gridSize * 0.2);
-            break;
-          case 3:
-            this.drawSimpleStar(data, resolution, centerX, centerY, gridSize * 0.25);
-            break;
-          case 4:
-            this.drawHexagonLace(data, resolution, centerX, centerY, gridSize * 0.22);
+            this.drawSimpleCircle(data, resolution, centerX, centerY, gridSize * 0.2);
             break;
         }
         
-        // Add connecting elements
-        if (Math.random() > 0.5) {
+        // Reduce connecting elements for performance
+        if (Math.random() > 0.7) {
           if (cellX < numCellsX - 1) {
             const nextX = (cellX + 1) * gridSize + gridSize / 2;
-            this.drawWavyLine(data, resolution, centerX + 12, centerY, nextX - 12, centerY);
+            this.drawStraightLine(data, resolution, centerX + 8, centerY, nextX - 8, centerY);
           }
           
           if (cellY < numCellsY - 1) {
             const nextY = (cellY + 1) * gridSize + gridSize / 2;
-            this.drawWavyLine(data, resolution, centerX, centerY + 12, centerX, nextY - 12);
+            this.drawStraightLine(data, resolution, centerX, centerY + 8, centerX, nextY - 8);
           }
         }
       }
     }
   }
 
-  private static drawLaceFlower(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, radius: number): void {
-    const petals = 6;
-    for (let i = 0; i < petals; i++) {
-      const angle = (i * Math.PI * 2) / petals;
-      const petalX = centerX + Math.cos(angle) * radius;
-      const petalY = centerY + Math.sin(angle) * radius;
-      this.drawCircle(data, resolution, petalX, petalY, radius * 0.4);
-    }
-    this.drawCircle(data, resolution, centerX, centerY, radius * 0.3);
-  }
-
-  private static drawDecorativeCross(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, size: number): void {
-    this.drawLine(data, resolution, centerX - size, centerY, centerX + size, centerY);
-    this.drawLine(data, resolution, centerX, centerY - size, centerX, centerY + size);
+  /**
+   * Generates a simplified lace pattern for high resolutions
+   */
+  private static generateSimpleLacePattern(data: Uint8ClampedArray, resolution: Resolution): void {
+    const spacing = Math.max(40, Math.floor(Math.sqrt(resolution.width * resolution.height) / 30));
     
-    // Add decorative ends
-    this.drawCircle(data, resolution, centerX - size, centerY, size * 0.2);
-    this.drawCircle(data, resolution, centerX + size, centerY, size * 0.2);
-    this.drawCircle(data, resolution, centerX, centerY - size, size * 0.2);
-    this.drawCircle(data, resolution, centerX, centerY + size, size * 0.2);
-  }
-
-  private static drawDoubleDiamond(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, size: number): void {
-    // Outer diamond
-    this.drawLine(data, resolution, centerX - size, centerY, centerX, centerY - size);
-    this.drawLine(data, resolution, centerX, centerY - size, centerX + size, centerY);
-    this.drawLine(data, resolution, centerX + size, centerY, centerX, centerY + size);
-    this.drawLine(data, resolution, centerX, centerY + size, centerX - size, centerY);
-    
-    // Inner diamond
-    const innerSize = size * 0.5;
-    this.drawLine(data, resolution, centerX - innerSize, centerY, centerX, centerY - innerSize);
-    this.drawLine(data, resolution, centerX, centerY - innerSize, centerX + innerSize, centerY);
-    this.drawLine(data, resolution, centerX + innerSize, centerY, centerX, centerY + innerSize);
-    this.drawLine(data, resolution, centerX, centerY + innerSize, centerX - innerSize, centerY);
-  }
-
-  private static drawSimpleStar(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, radius: number): void {
-    const points = 8;
-    for (let i = 0; i < points; i++) {
-      const angle = (i * Math.PI * 2) / points;
-      const pointX = centerX + Math.cos(angle) * radius;
-      const pointY = centerY + Math.sin(angle) * radius;
-      this.drawLine(data, resolution, centerX, centerY, pointX, pointY);
+    // Create a simple grid pattern
+    for (let y = spacing; y < resolution.height; y += spacing) {
+      for (let x = spacing; x < resolution.width; x += spacing) {
+        // Simple cross pattern
+        this.drawStraightLine(data, resolution, x - 10, y, x + 10, y);
+        this.drawStraightLine(data, resolution, x, y - 10, x, y + 10);
+      }
     }
   }
 
-  private static drawHexagonLace(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, radius: number): void {
-    const points = 6;
-    for (let i = 0; i < points; i++) {
-      const angle1 = (i * Math.PI * 2) / points;
-      const angle2 = ((i + 1) * Math.PI * 2) / points;
+  private static drawSimpleCross(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, size: number): void {
+    this.drawStraightLine(data, resolution, centerX - size, centerY, centerX + size, centerY);
+    this.drawStraightLine(data, resolution, centerX, centerY - size, centerX, centerY + size);
+  }
+
+  private static drawSimpleDiamond(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, size: number): void {
+    this.drawStraightLine(data, resolution, centerX - size, centerY, centerX, centerY - size);
+    this.drawStraightLine(data, resolution, centerX, centerY - size, centerX + size, centerY);
+    this.drawStraightLine(data, resolution, centerX + size, centerY, centerX, centerY + size);
+    this.drawStraightLine(data, resolution, centerX, centerY + size, centerX - size, centerY);
+  }
+
+  private static drawSimpleCircle(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, radius: number): void {
+    // Optimized circle using Bresenham-like algorithm
+    const radiusInt = Math.round(radius);
+    let x = radiusInt;
+    let y = 0;
+    let decisionOver2 = 1 - x;
+
+    while (y <= x) {
+      this.setPixel(data, resolution, Math.round(centerX + x), Math.round(centerY + y));
+      this.setPixel(data, resolution, Math.round(centerX + y), Math.round(centerY + x));
+      this.setPixel(data, resolution, Math.round(centerX - x), Math.round(centerY + y));
+      this.setPixel(data, resolution, Math.round(centerX - y), Math.round(centerY + x));
+      this.setPixel(data, resolution, Math.round(centerX - x), Math.round(centerY - y));
+      this.setPixel(data, resolution, Math.round(centerX - y), Math.round(centerY - x));
+      this.setPixel(data, resolution, Math.round(centerX + x), Math.round(centerY - y));
+      this.setPixel(data, resolution, Math.round(centerX + y), Math.round(centerY - x));
       
-      const x1 = centerX + Math.cos(angle1) * radius;
-      const y1 = centerY + Math.sin(angle1) * radius;
-      const x2 = centerX + Math.cos(angle2) * radius;
-      const y2 = centerY + Math.sin(angle2) * radius;
-      
-      this.drawLine(data, resolution, x1, y1, x2, y2);
-    }
-    this.drawCircle(data, resolution, centerX, centerY, radius * 0.3);
-  }
-
-  private static drawWavyLine(data: Uint8ClampedArray, resolution: Resolution, x1: number, y1: number, x2: number, y2: number): void {
-    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const x = x1 + (x2 - x1) * t;
-      const y = y1 + (y2 - y1) * t + Math.sin(t * Math.PI * 3) * 3;
-      this.setPixel(data, resolution, Math.round(x), Math.round(y));
+      y++;
+      if (decisionOver2 <= 0) {
+        decisionOver2 += 2 * y + 1;
+      } else {
+        x--;
+        decisionOver2 += 2 * (y - x) + 1;
+      }
     }
   }
 
-  private static drawCircle(data: Uint8ClampedArray, resolution: Resolution, centerX: number, centerY: number, radius: number): void {
-    for (let angle = 0; angle < Math.PI * 2; angle += 0.1) {
-      const x = Math.round(centerX + Math.cos(angle) * radius);
-      const y = Math.round(centerY + Math.sin(angle) * radius);
-      this.setPixel(data, resolution, x, y);
-    }
-  }
-
-  private static drawLine(data: Uint8ClampedArray, resolution: Resolution, x1: number, y1: number, x2: number, y2: number): void {
+  private static drawStraightLine(data: Uint8ClampedArray, resolution: Resolution, x1: number, y1: number, x2: number, y2: number): void {
+    // Optimized Bresenham line algorithm
     const dx = Math.abs(x2 - x1);
     const dy = Math.abs(y2 - y1);
     const sx = x1 < x2 ? 1 : -1;
@@ -152,7 +131,11 @@ export class LacePattern {
     const endX = Math.round(x2);
     const endY = Math.round(y2);
     
-    while (true) {
+    // Limit iterations to prevent infinite loops
+    let iterations = 0;
+    const maxIterations = Math.max(dx, dy) + 1;
+    
+    while (iterations < maxIterations) {
       this.setPixel(data, resolution, x, y);
       
       if (x === endX && y === endY) break;
@@ -166,6 +149,7 @@ export class LacePattern {
         err += dx;
         y += sy;
       }
+      iterations++;
     }
   }
 
