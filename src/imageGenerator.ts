@@ -153,7 +153,7 @@ export class ImageGenerator {
     switch (pattern) {
       // Basic patterns
       case 'noise':
-        BasicPatterns.NoisePattern.generate(data);
+        BasicPatterns.NoisePattern.generate(data, resolution);
         break;
       case 'perlin':
         BasicPatterns.PerlinNoisePattern.generate(data, resolution);
