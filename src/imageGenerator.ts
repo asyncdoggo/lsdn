@@ -1,19 +1,23 @@
 import { PatternRegistry, type PatternType } from './patternRegistry';
 import { ColorManager } from './colorManager';
 import { CanvasUtils } from './canvasUtils';
+import { TextToImageGenerator, type TextToImageOptions } from './textToImageGenerator';
 
 export interface Resolution {
   width: number;
   height: number;
 }
 
-export type ResolutionKey = '512' | '1024' | '1536' | '4MP' | '8MP' | '12MP';
+export type ResolutionKey = '64' | '128' | '256' | '512' | '1024' | '1536' | '4MP' | '8MP' | '12MP';
 
 // Re-export PatternType from the registry
 export type { PatternType };
 
 export class ImageGenerator {
   private resolutions: Record<string, Resolution> = {
+    '64': { width: 64, height: 64 },       // 0.004 megapixels
+    '128': { width: 128, height: 128 },     // 0.016 megapixels
+    '256': { width: 256, height: 256 },     // 0.065 megapixels
     '512': { width: 512, height: 512 },     // 0.26 megapixels
     '1024': { width: 1024, height: 1024 },  // 1 megapixel
     '1536': { width: 1536, height: 1536 },  // 2.36 megapixels
@@ -21,6 +25,8 @@ export class ImageGenerator {
     '8MP': { width: 2896, height: 2760 },   // ~8 megapixels  
     '12MP': { width: 3456, height: 3456 }   // ~12 megapixels
   };
+
+  private textToImageGenerator: TextToImageGenerator | null = null;
 
   /**
    * Generates a random black and white image on the provided canvas
@@ -143,5 +149,88 @@ export class ImageGenerator {
    */
   getPatternsByCategory(category: string): PatternType[] {
     return PatternRegistry.getPatternsByCategory(category);
+  }
+
+  /**
+   * Initialize the text-to-image generator and load ONNX models
+   */
+  async initializeTextToImage(onProgress?: (stage: string, progress: number) => void): Promise<void> {
+    if (!this.textToImageGenerator) {
+      this.textToImageGenerator = new TextToImageGenerator();
+    }
+    
+    if (!this.textToImageGenerator.modelsLoaded) {
+      await this.textToImageGenerator.loadModels(onProgress);
+    }
+  }
+
+  /**
+   * Generate image from text prompt using Stable Diffusion
+   */
+  async generateFromText(
+    canvas: HTMLCanvasElement,
+    prompt: string,
+    options: {
+      negativePrompt?: string;
+      resolutionKey?: ResolutionKey;
+      steps?: number;
+      guidance?: number;
+      seed?: number;
+    } = {},
+    onProgress?: (stage: string, progress: number) => void
+  ): Promise<void> {
+    if (!this.textToImageGenerator) {
+      throw new Error('Text-to-image generator not initialized. Call initializeTextToImage() first.');
+    }
+
+    const {
+      negativePrompt = '',
+      resolutionKey = '512',
+      steps = 20,
+      guidance = 7.5,
+      seed
+    } = options;
+
+    const resolution = this.resolutions[resolutionKey];
+    
+    // Support resolutions up to 512x512 for ONNX web inference
+    if (resolution.width > 512 || resolution.height > 512) {
+      throw new Error('Text-to-image generation is currently limited to 512x512 resolution for performance reasons.');
+    }
+
+    const textToImageOptions: TextToImageOptions = {
+      prompt,
+      negativePrompt,
+      width: resolution.width,
+      height: resolution.height,
+      steps,
+      guidance,
+      seed
+    };
+
+    // Generate the image
+    const imageData = await this.textToImageGenerator.generateImage(textToImageOptions, onProgress);
+
+    // Setup canvas and display the generated image
+    const ctx = CanvasUtils.setupCanvas(canvas, resolution);
+    ctx.putImageData(imageData, 0, 0);
+    CanvasUtils.scaleCanvasDisplay(canvas, resolution);
+  }
+
+  /**
+   * Check if text-to-image models are loaded and ready
+   */
+  get isTextToImageReady(): boolean {
+    return this.textToImageGenerator?.modelsLoaded ?? false;
+  }
+
+  /**
+   * Dispose of text-to-image resources
+   */
+  async disposeTextToImage(): Promise<void> {
+    if (this.textToImageGenerator) {
+      await this.textToImageGenerator.dispose();
+      this.textToImageGenerator = null;
+    }
   }
 }

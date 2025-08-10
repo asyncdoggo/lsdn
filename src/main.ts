@@ -13,6 +13,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <div class="resolution-section">
           <h3>Resolution</h3>
           <div class="resolution-buttons">
+            <button class="resolution-btn" data-resolution="64">64px</button>
+            <button class="resolution-btn" data-resolution="128">128px</button>
+            <button class="resolution-btn" data-resolution="256">256px</button>
             <button class="resolution-btn" data-resolution="512">512px</button>
             <button class="resolution-btn" data-resolution="1024">1024px</button>
             <button class="resolution-btn active" data-resolution="1536">1536px</button>
@@ -33,6 +36,62 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
               <span class="color-icon">🌈</span>
               <span>Color</span>
             </button>
+          </div>
+        </div>
+
+        <div class="generation-mode-section">
+          <h3>Generation Mode</h3>
+          <div class="mode-toggle">
+            <button class="mode-btn active" data-mode="pattern">
+              <span class="mode-icon">🎨</span>
+              <span>Pattern</span>
+            </button>
+            <button class="mode-btn" data-mode="text">
+              <span class="mode-icon">✍️</span>
+              <span>Text-to-Image</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="text-to-image-section hidden">
+          <h3>Text Prompt</h3>
+          <div class="prompt-controls">
+            <textarea 
+              id="promptInput" 
+              placeholder="Enter your text prompt here... (e.g., 'a beautiful sunset over mountains')"
+              rows="3"
+              maxlength="500"
+            ></textarea>
+            <textarea 
+              id="negativePromptInput" 
+              placeholder="Negative prompt (optional) - what you DON'T want..."
+              rows="2"
+              maxlength="300"
+            ></textarea>
+            <div class="ai-settings">
+              <div class="setting-group">
+                <label for="stepsSlider">Steps: <span id="stepsValue">20</span></label>
+                <input type="range" id="stepsSlider" min="10" max="50" value="20" />
+              </div>
+              <div class="setting-group">
+                <label for="guidanceSlider">Guidance: <span id="guidanceValue">7.5</span></label>
+                <input type="range" id="guidanceSlider" min="1" max="20" step="0.5" value="7.5" />
+              </div>
+              <div class="setting-group">
+                <label for="seedInput">Seed (optional):</label>
+                <input type="number" id="seedInput" placeholder="Random" min="0" max="999999" />
+              </div>
+            </div>
+            <div class="model-status">
+              <div class="status-indicator" id="modelStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Models not loaded</span>
+              </div>
+              <button id="loadModelsBtn" class="load-models-btn">
+                <span class="btn-icon">📥</span>
+                <span class="btn-text">Load AI Models</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -429,6 +488,7 @@ const imageGenerator = new ImageGenerator()
 let currentResolution: ResolutionKey = '1536';
 let currentPattern: PatternType = 'noise';
 let isColorMode: boolean = false;
+let generationMode: 'pattern' | 'text' = 'pattern';
 
 // Get elements
 const canvas = document.querySelector<HTMLCanvasElement>('#imageCanvas')!
@@ -436,6 +496,17 @@ const generateBtn = document.querySelector<HTMLButtonElement>('#generate')!
 const downloadBtn = document.querySelector<HTMLButtonElement>('#download')!
 const canvasOverlay = document.querySelector('.canvas-overlay') as HTMLDivElement;
 const loadingText = document.querySelector('.loading-text') as HTMLParagraphElement;
+
+// Text-to-image elements
+const promptInput = document.querySelector<HTMLTextAreaElement>('#promptInput')!;
+const negativePromptInput = document.querySelector<HTMLTextAreaElement>('#negativePromptInput')!;
+const stepsSlider = document.querySelector<HTMLInputElement>('#stepsSlider')!;
+const guidanceSlider = document.querySelector<HTMLInputElement>('#guidanceSlider')!;
+const seedInput = document.querySelector<HTMLInputElement>('#seedInput')!;
+const stepsValue = document.querySelector('#stepsValue')!;
+const guidanceValue = document.querySelector('#guidanceValue')!;
+const modelStatus = document.querySelector('#modelStatus')!;
+const loadModelsBtn = document.querySelector<HTMLButtonElement>('#loadModelsBtn')!;
 
 // Resolution buttons
 const resolutionButtons = document.querySelectorAll('.resolution-btn');
@@ -456,6 +527,82 @@ colorButtons.forEach(btn => {
     isColorMode = btn.getAttribute('data-color') === 'true';
   });
 });
+
+// Generation mode buttons
+const modeButtons = document.querySelectorAll('.mode-btn');
+const patternSection = document.querySelector('.pattern-section') as HTMLElement;
+const textToImageSection = document.querySelector('.text-to-image-section') as HTMLElement;
+
+modeButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    modeButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    generationMode = btn.getAttribute('data-mode') as 'pattern' | 'text';
+    
+    // Toggle UI sections
+    if (generationMode === 'text') {
+      patternSection.classList.add('hidden');
+      textToImageSection.classList.remove('hidden');
+      // For text-to-image, limit to smaller resolutions (up to 512x512)
+      // If current resolution is too large, switch to 512
+      if (!['64', '128', '256', '512'].includes(currentResolution)) {
+        currentResolution = '512';
+        resolutionButtons.forEach(b => b.classList.remove('active'));
+        const res512Btn = document.querySelector('[data-resolution="512"]');
+        if (res512Btn) res512Btn.classList.add('active');
+      }
+    } else {
+      patternSection.classList.remove('hidden');
+      textToImageSection.classList.add('hidden');
+    }
+  });
+});
+
+// Text-to-image slider updates
+stepsSlider.addEventListener('input', () => {
+  stepsValue.textContent = stepsSlider.value;
+});
+
+guidanceSlider.addEventListener('input', () => {
+  guidanceValue.textContent = guidanceSlider.value;
+});
+
+// Load models button
+loadModelsBtn.addEventListener('click', async () => {
+  if (loadModelsBtn.disabled) return;
+  
+  loadModelsBtn.disabled = true;
+  const originalText = loadModelsBtn.querySelector('.btn-text')?.textContent || 'Load AI Models';
+  const btnText = loadModelsBtn.querySelector('.btn-text');
+  
+  try {
+    updateModelStatus('loading', 'Loading models...');
+    if (btnText) btnText.textContent = 'Loading...';
+    
+    await imageGenerator.initializeTextToImage((stage, progress) => {
+      updateModelStatus('loading', `${stage} (${Math.round(progress * 100)}%)`);
+    });
+    
+    updateModelStatus('ready', 'Models loaded and ready');
+    if (btnText) btnText.textContent = 'Models Loaded ✓';
+    loadModelsBtn.style.display = 'none'; // Hide the button once loaded
+    
+  } catch (error) {
+    console.error('Failed to load models:', error);
+    updateModelStatus('error', 'Failed to load models');
+    if (btnText) btnText.textContent = originalText;
+    loadModelsBtn.disabled = false;
+  }
+});
+
+// Model status update function
+function updateModelStatus(status: 'loading' | 'ready' | 'error' | 'not-loaded', message: string) {
+  const statusDot = modelStatus.querySelector('.status-dot') as HTMLElement;
+  const statusText = modelStatus.querySelector('.status-text') as HTMLElement;
+  
+  statusDot.className = `status-dot status-${status}`;
+  statusText.textContent = message;
+}
 
 // Category tabs
 const categoryTabs = document.querySelectorAll('.category-tab');
@@ -512,37 +659,86 @@ generateBtn.addEventListener('click', async () => {
   downloadBtn.disabled = true;
   canvasOverlay.classList.remove('hidden');
   
-  // Update loading text
-  if (loadingText) loadingText.textContent = 'Generating...';
-  
   // Update button text to show it's generating
   const btnText = generateBtn.querySelector('.btn-text');
   const originalText = btnText?.textContent || 'Generate';
   if (btnText) btnText.textContent = 'Generating...';
   
   try {
-    // Use the new async method without progress callback
-    await imageGenerator.generatePatternImageAsync(
-      canvas, 
-      currentResolution, 
-      currentPattern, 
-      isColorMode
-    );
+    if (generationMode === 'text') {
+      // Text-to-image generation
+      const prompt = promptInput.value.trim();
+      if (!prompt) {
+        alert('Please enter a text prompt');
+        return;
+      }
+      
+      if (!imageGenerator.isTextToImageReady) {
+        alert('AI models are not loaded. Please click "Load AI Models" first.');
+        return;
+      }
+      
+      // Force supported resolution for text-to-image
+      if (!['64', '128', '256', '512'].includes(currentResolution)) {
+        currentResolution = '512';
+        resolutionButtons.forEach(b => b.classList.remove('active'));
+        const res512Btn = document.querySelector('[data-resolution="512"]');
+        if (res512Btn) res512Btn.classList.add('active');
+      }
+      
+      const options = {
+        negativePrompt: negativePromptInput.value.trim(),
+        resolutionKey: currentResolution,
+        steps: parseInt(stepsSlider.value),
+        guidance: parseFloat(guidanceSlider.value),
+        seed: seedInput.value ? parseInt(seedInput.value) : undefined
+      };
+      
+      await imageGenerator.generateFromText(
+        canvas, 
+        prompt, 
+        options,
+        (stage, progress) => {
+          if (loadingText) loadingText.textContent = `${stage} (${Math.round(progress * 100)}%)`;
+        }
+      );
+      
+    } else {
+      // Pattern generation
+      if (loadingText) loadingText.textContent = 'Generating pattern...';
+      
+      await imageGenerator.generatePatternImageAsync(
+        canvas, 
+        currentResolution, 
+        currentPattern, 
+        isColorMode
+      );
+    }
     
     downloadBtn.disabled = false;
   } catch (error) {
     console.error('Error generating image:', error);
-    alert('Error generating image. Please try again.');
+    alert(`Error generating image: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
     generateBtn.disabled = false;
     canvasOverlay.classList.add('hidden');
     if (btnText) btnText.textContent = originalText;
+    if (loadingText) loadingText.textContent = 'Generating...';
   }
 });
 
 // Download button
 downloadBtn.addEventListener('click', () => {
-  imageGenerator.downloadImage(canvas, `random-bw-image-${currentPattern}-${currentResolution}-${Date.now()}.png`);
+  let filename: string;
+  
+  if (generationMode === 'text') {
+    const prompt = promptInput.value.trim().slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_');
+    filename = `ai-generated-${prompt}-${Date.now()}.png`;
+  } else {
+    filename = `random-bw-image-${currentPattern}-${currentResolution}-${Date.now()}.png`;
+  }
+  
+  imageGenerator.downloadImage(canvas, filename);
 });
 
 // Initialize with default values on page load
