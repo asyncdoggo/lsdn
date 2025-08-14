@@ -125,19 +125,9 @@ guidanceSlider.addEventListener('input', () => {
 
 // Scheduler selector with recommended steps
 schedulerSelect.addEventListener('change', () => {
-  const scheduler = schedulerSelect.value;
   let recommendedSteps: number;
   
-  switch (scheduler) {
-    case 'euler-karras':
-      recommendedSteps = 4; // Fast scheduler, fewer steps
-      break;
-    case 'ddpm':
-      recommendedSteps = 20; // Balanced scheduler
-      break;
-    default:
-      recommendedSteps = 20;
-  }
+  recommendedSteps = 20;
   
   stepsSlider.value = recommendedSteps.toString();
   stepsValue.textContent = recommendedSteps.toString();
