@@ -28,8 +28,8 @@ export class EulerKarrasScheduler extends BaseScheduler {
       const sigma = (maxInvRho + t * (minInvRho - maxInvRho)) ** this.rho;
       this.sigmas.push(sigma);
       
-      // Convert sigma to timestep using proper formula
-      const timestep = 1000 * sigma / this.sigmaMax;
+      // Convert sigma to timestep (reverse mapping from high to low)
+      const timestep = this.numTrainTimesteps - 1 - Math.floor((this.numTrainTimesteps - 1) * t);
       this.timesteps.push(timestep);
     }
     

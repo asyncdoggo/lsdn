@@ -52,9 +52,9 @@ export class DDPMScheduler extends BaseScheduler {
       }
     }
 
-    // Generate inference timesteps (evenly spaced)
+    // Generate inference timesteps (evenly spaced, descending from high to low)
     for (let i = 0; i < steps; i++) {
-      const timestep = Math.floor((this.numTrainTimesteps - 1) * i / (steps - 1));
+      const timestep = Math.floor((this.numTrainTimesteps - 1) * (steps - 1 - i) / (steps - 1));
       this.timesteps.push(timestep);
     }
 
@@ -82,12 +82,15 @@ export class DDPMScheduler extends BaseScheduler {
     timestepIndex: number
   ): SchedulerStepResult {
     const t = this.timesteps[timestepIndex];
-    const prevT = timestepIndex > 0 ? this.timesteps[timestepIndex - 1] : 0;
+    // For descending timesteps, the "previous" (less noisy) timestep is the next index
+    const prevT = timestepIndex < this.timesteps.length - 1 ? this.timesteps[timestepIndex + 1] : 0;
 
     const alphaProdT = this.alphasCumprod[t];
     const alphaProdTPrev = prevT >= 0 ? this.alphasCumprod[prevT] : 1.0;
     const betaProdT = 1 - alphaProdT;
     const betaProdTPrev = 1 - alphaProdTPrev;
+
+    console.log(`DDPM Step Debug: t=${t}, prevT=${prevT}, alphaProdT=${alphaProdT.toFixed(6)}, alphaProdTPrev=${alphaProdTPrev.toFixed(6)}`);
 
     const outputData = new Float16Array(modelOutput.data.length);
 

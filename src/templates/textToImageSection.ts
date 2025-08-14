@@ -10,7 +10,7 @@ export const textToImageSectionTemplate = `
       ></textarea>
       <textarea 
         id="negativePromptInput" 
-        placeholder="Negative prompt (optional) - what you DON'T want..."
+        placeholder="blurry, low quality, distorted, noise, artifacts, oversaturated"
         rows="2"
         maxlength="300"
       ></textarea>
@@ -20,8 +20,8 @@ export const textToImageSectionTemplate = `
           <input type="range" id="stepsSlider" min="1" max="50" value="20" />
         </div>
         <div class="setting-group">
-          <label for="guidanceSlider">Guidance: <span id="guidanceValue">7.5</span></label>
-          <input type="range" id="guidanceSlider" min="1" max="20" step="0.5" value="7.5" />
+          <label for="guidanceSlider">Guidance: <span id="guidanceValue">3.5</span></label>
+          <input type="range" id="guidanceSlider" min="1" max="15" step="0.5" value="3.5" />
         </div>
         <div class="setting-group">
           <label for="schedulerSelect">Scheduler:</label>
