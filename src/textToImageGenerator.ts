@@ -19,7 +19,7 @@ export interface TextToImageOptions {
 }
 
 
-const BASE_URL = "/model2";
+const BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
 
 const urls = {
   "unet": `${BASE_URL}/unet/model.onnx`,
@@ -245,7 +245,7 @@ export class TextToImageGenerator {
     if (this.isLoaded) return;
 
     try {
-      if (onProgress) onProgress('Loading Text Encoder', 0.3);
+      if (onProgress) onProgress('Loading Text Encoder', 0.2);
       
       // Load text encoder (this one doesn't depend on resolution)
       const textEncoderBytes = await this.fetchAndCache(this.modelConfig.textEncoder.url);
@@ -253,10 +253,28 @@ export class TextToImageGenerator {
         sess: await ort.InferenceSession.create(textEncoderBytes, this.modelConfig.textEncoder.opt)
       };
 
-      if (onProgress) onProgress('Loading Tokenizer', 0.8);
+      if (onProgress) onProgress('Loading Tokenizer', 0.4);
       
       // Load tokenizer
       await this.initializeTokenizer();
+
+      if (onProgress) onProgress('Loading UNet for 512px', 0.6);
+      
+      // Load UNet and VAE for default 512px resolution
+      const [latentHeight, latentWidth] = this.getLatentDimensions(512, 512);
+      
+      this.models.unet = {
+        sess: await this.createUNetSession(latentHeight, latentWidth)
+      };
+
+      if (onProgress) onProgress('Loading VAE Decoder for 512px', 0.8);
+      
+      this.models.vaeDecoder = {
+        sess: await this.createVAESession(latentHeight, latentWidth)
+      };
+
+      // Store current dimensions as 512px
+      this.currentLatentDimensions = [latentHeight, latentWidth];
 
       this.isLoaded = true;
       if (onProgress) onProgress('Models Loaded', 1.0);
@@ -304,14 +322,29 @@ export class TextToImageGenerator {
     }
 
     try {
+      const generationStartTime = performance.now();
+      
+      // Get negative prompt early to avoid variable issues
+      const negativePromptText = options.negativePrompt || "";
+      
+      console.log(`🚀 Starting image generation:`, {
+        resolution: `${width}x${height}`,
+        steps,
+        guidance,
+        scheduler: scheduler,
+        seed: seed || 'random',
+        prompt: prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
+        negativePrompt: negativePromptText ? negativePromptText.slice(0, 30) + '...' : 'none'
+      });
+
       if (onProgress) onProgress('Encoding text prompt', 0.1);
 
+      const textEncodingStart = performance.now();
       // Tokenize positive prompt
       const { input_ids: posInputIds } = await this.tokenizer!(prompt, { padding: true, max_length: 77, truncation: true, return_tensor: false });
       
       // Tokenize negative prompt (empty string for unconditional)
-      const negativePrompt = options.negativePrompt || "";
-      const { input_ids: negInputIds } = await this.tokenizer!(negativePrompt, { padding: true, max_length: 77, truncation: true, return_tensor: false });
+      const { input_ids: negInputIds } = await this.tokenizer!(negativePromptText, { padding: true, max_length: 77, truncation: true, return_tensor: false });
 
       // Run text encoder for positive prompt
       const posTextEncoderResult = await this.models.textEncoder!.sess.run({
@@ -325,6 +358,9 @@ export class TextToImageGenerator {
 
       const posEmbeddings = posTextEncoderResult.last_hidden_state as ort.Tensor;
       const negEmbeddings = negTextEncoderResult.last_hidden_state as ort.Tensor;
+      
+      const textEncodingTime = performance.now() - textEncodingStart;
+      console.log(`📝 Text encoding completed in ${textEncodingTime.toFixed(2)}ms`);
 
       if (onProgress) onProgress('Generating initial noise', 0.2);
 
@@ -368,18 +404,25 @@ export class TextToImageGenerator {
       // Generate timesteps and sigmas using the scheduler
       const timestepData = this.scheduler.generateTimesteps(steps);
       
+      console.log(`🔄 Starting denoising with ${steps} steps using ${this.scheduler.name} scheduler`);
+      console.log(`📊 Latent dimensions: ${latentHeight}x${latentWidth} (${latentShape.join('x')})`);
+      
       // Scale initial latents using scheduler
       latent = this.scheduler.scaleInitialNoise(latent, timestepData);
+      
+      const denoisingStartTime = performance.now();
+      let totalUNetTime = 0;
       
       // Denoising loop
       for (let stepIndex = 0; stepIndex < steps; stepIndex++) {
         // Check for cancellation
         if (this.isCancelled) {
-          console.log(`Generation cancelled at step ${stepIndex + 1}/${steps}`);
+          console.log(`❌ Generation cancelled at step ${stepIndex + 1}/${steps}`);
           if (onProgress) onProgress(`Cancelled at step ${stepIndex + 1}`, 0.7);
           break;
         }
 
+        const stepStartTime = performance.now();
         const timestep = timestepData.timesteps[stepIndex];
         const sigma = timestepData.sigmas[stepIndex];
         const sigmaNext = timestepData.sigmas[stepIndex + 1];
@@ -395,9 +438,12 @@ export class TextToImageGenerator {
         const timestepTensor = new ort.Tensor('float16', timestepFloat16, [1]);
 
         let outSample: ort.Tensor;
+        const unetStartTime = performance.now();
 
         if (guidance <= 1.0) {
           // No guidance - just run positive conditioning
+          console.log(`  Step ${stepIndex + 1}: Running single UNet pass (no CFG), timestep=${timestep.toFixed(2)}, sigma=${sigma.toFixed(4)}`);
+          
           const unetResult = await this.models.unet!.sess.run({
             sample: latentModelInput,
             timestep: timestepTensor,
@@ -406,6 +452,8 @@ export class TextToImageGenerator {
           outSample = unetResult.out_sample as ort.Tensor;
         } else {
           // Run UNet twice for classifier-free guidance
+          console.log(`  Step ${stepIndex + 1}: Running CFG with guidance=${guidance}, timestep=${timestep.toFixed(2)}, sigma=${sigma.toFixed(4)}`);
+          
           // First run: negative/unconditional
           const negUnetResult = await this.models.unet!.sess.run({
             sample: latentModelInput,
@@ -437,10 +485,19 @@ export class TextToImageGenerator {
           outSample = new ort.Tensor('float16', guidedOutputData, latentModelInput.dims);
         }
 
+        const unetTime = performance.now() - unetStartTime;
+        totalUNetTime += unetTime;
+
         // Apply scheduler step
         const stepResult = this.scheduler.step(outSample, latent, stepIndex, sigma, sigmaNext);
         latent = stepResult.prevSample;
+        
+        const stepTime = performance.now() - stepStartTime;
+        console.log(`  ⏱️  Step ${stepIndex + 1} completed in ${stepTime.toFixed(2)}ms (UNet: ${unetTime.toFixed(2)}ms)`);
       }
+      
+      const totalDenoisingTime = performance.now() - denoisingStartTime;
+      console.log(`✅ Denoising completed in ${totalDenoisingTime.toFixed(2)}ms (avg: ${(totalDenoisingTime / steps).toFixed(2)}ms/step, UNet total: ${totalUNetTime.toFixed(2)}ms)`);
 
       // Apply VAE scaling factor after denoising is complete
       if (onProgress) onProgress('Applying VAE scaling', 0.75);
@@ -453,16 +510,32 @@ export class TextToImageGenerator {
       if (onProgress) onProgress('Decoding with VAE', 0.8);
 
       // Run VAE decoder
+      const vaeStartTime = performance.now();
       const vaeResult = await this.models.vaeDecoder!.sess.run({
         latent_sample: latent
       });
+      const vaeTime = performance.now() - vaeStartTime;
+      console.log(`🎨 VAE decoding completed in ${vaeTime.toFixed(2)}ms`);
 
       const sample = vaeResult.sample as ort.Tensor;
 
       if (onProgress) onProgress('Converting to image', 0.9);
 
       // Convert tensor to ImageData
+      const conversionStartTime = performance.now();
       const imageData = this.tensorToImageData(sample, width, height);
+      const conversionTime = performance.now() - conversionStartTime;
+      
+      const totalGenerationTime = performance.now() - generationStartTime;
+      console.log(`🖼️  Image conversion completed in ${conversionTime.toFixed(2)}ms`);
+      console.log(`🎉 Total generation completed in ${totalGenerationTime.toFixed(2)}ms`);
+      console.log(`📈 Performance breakdown:`, {
+        textEncoding: `${textEncodingTime.toFixed(2)}ms`,
+        denoising: `${totalDenoisingTime.toFixed(2)}ms`,
+        vaeDecoding: `${vaeTime.toFixed(2)}ms`,
+        imageConversion: `${conversionTime.toFixed(2)}ms`,
+        total: `${totalGenerationTime.toFixed(2)}ms`
+      });
 
       // Clean up GPU resources
       try {
