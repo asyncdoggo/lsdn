@@ -4,6 +4,7 @@ import { BaseScheduler, SchedulerRegistry } from './schedulers';
 import type { SchedulerType } from './schedulers';
 import { NoiseGenerator } from './utils/noiseGenerator';
 
+// Do not change the below or PretrainedTokenizer will not work
 env.allowLocalModels = false;
 env.useBrowserCache = false;
 
@@ -16,6 +17,8 @@ export interface TextToImageOptions {
   guidance: number;
   seed?: number;
   scheduler?: SchedulerType;
+  useTiledVAE?: boolean;  // Use tiled VAE to reduce memory usage
+  tileSize?: number;      // Size of tiles (defaults to 512)
 }
 
 
@@ -187,6 +190,205 @@ export class TextToImageGenerator {
   }
 
   /**
+   * Decode latents using tiled VAE to reduce memory usage
+   */
+  private async decodeTiledVAE(
+    latent: ort.Tensor, 
+    width: number, 
+    height: number, 
+    tileSize: number = 512,
+    onProgress?: (stage: string, progress: number) => void
+  ): Promise<ort.Tensor> {
+    const latentHeight = height / 8; // VAE downsamples by factor of 8
+    const latentWidth = width / 8;
+    const tileSizeLatent = tileSize / 8; // Convert tile size to latent space
+    
+    // Calculate number of tiles needed
+    const tilesX = Math.ceil(latentWidth / tileSizeLatent);
+    const tilesY = Math.ceil(latentHeight / tileSizeLatent);
+    const totalTiles = tilesX * tilesY;
+    
+    console.log(`🧩 Using tiled VAE: ${tilesX}x${tilesY} tiles (${totalTiles} total), tile size: ${tileSize}px`);
+    
+    // Create output tensor for final image
+    const outputChannels = 3; // RGB
+    const outputData = new Float32Array(1 * outputChannels * height * width);
+    const outputTensor = new ort.Tensor('float32', outputData, [1, outputChannels, height, width]);
+    
+    // Create a single VAE session that can handle the maximum tile size
+    // Use the tile size in latent space for the VAE session
+    const vaeSession = await this.createVAESession(tileSizeLatent, tileSizeLatent);
+    
+    try {
+      let processedTiles = 0;
+      
+      for (let tileY = 0; tileY < tilesY; tileY++) {
+        for (let tileX = 0; tileX < tilesX; tileX++) {
+          // Calculate tile boundaries in latent space
+          const startX = tileX * tileSizeLatent;
+          const startY = tileY * tileSizeLatent;
+          const endX = Math.min(startX + tileSizeLatent, latentWidth);
+          const endY = Math.min(startY + tileSizeLatent, latentHeight);
+          
+          const tileLatentWidth = endX - startX;
+          const tileLatentHeight = endY - startY;
+          
+          // Extract tile from latent tensor
+          const tileLatent = this.extractTile(latent, startX, startY, tileLatentWidth, tileLatentHeight);
+          
+          // If tile is smaller than max tile size, pad it to match VAE session dimensions
+          const paddedTileLatent = this.padTileIfNeeded(tileLatent, tileSizeLatent, tileSizeLatent);
+          
+          // Decode the tile using the shared VAE session
+          const tileResult = await vaeSession.run({
+            latent_sample: paddedTileLatent
+          });
+          
+          const tileSample = tileResult.sample as ort.Tensor;
+          
+          // Calculate output boundaries in pixel space
+          const outputStartX = startX * 8;
+          const outputStartY = startY * 8;
+          const outputEndX = endX * 8;
+          const outputEndY = endY * 8;
+          
+          // Copy tile data to output tensor (only the actual tile size, not padding)
+          this.copyTileToOutput(tileSample, outputTensor, outputStartX, outputStartY, outputEndX, outputEndY, tileLatentWidth * 8, tileLatentHeight * 8);
+          
+          processedTiles++;
+          
+          if (onProgress) {
+            const progress = 0.8 + (processedTiles / totalTiles) * 0.1; // Progress from 0.8 to 0.9
+            onProgress(`Decoding tile ${processedTiles}/${totalTiles}`, progress);
+          }
+          
+          console.log(`  🧩 Processed tile ${processedTiles}/${totalTiles} (${tileX},${tileY})`);
+        }
+      }
+    } finally {
+      // Clean up the single VAE session after processing all tiles
+      await vaeSession.release();
+    }
+    
+    return outputTensor;
+  }
+
+  /**
+   * Pad a tile tensor to match the expected VAE session dimensions
+   */
+  private padTileIfNeeded(
+    tileLatent: ort.Tensor,
+    targetHeight: number,
+    targetWidth: number
+  ): ort.Tensor {
+    const [batch, channels, currentHeight, currentWidth] = tileLatent.dims as [number, number, number, number];
+    
+    // If tile is already the right size, return as-is
+    if (currentHeight === targetHeight && currentWidth === targetWidth) {
+      return tileLatent;
+    }
+    
+    // Create padded tensor
+    const paddedData = new Float16Array(batch * channels * targetHeight * targetWidth);
+    const inputData = tileLatent.data as Float16Array;
+    
+    // Copy original data to top-left corner of padded tensor
+    for (let b = 0; b < batch; b++) {
+      for (let c = 0; c < channels; c++) {
+        for (let y = 0; y < currentHeight; y++) {
+          for (let x = 0; x < currentWidth; x++) {
+            const srcIdx = b * (channels * currentHeight * currentWidth) + 
+                          c * (currentHeight * currentWidth) + 
+                          y * currentWidth + x;
+            const dstIdx = b * (channels * targetHeight * targetWidth) + 
+                          c * (targetHeight * targetWidth) + 
+                          y * targetWidth + x;
+            paddedData[dstIdx] = inputData[srcIdx];
+          }
+        }
+      }
+    }
+    
+    return new ort.Tensor('float16', paddedData, [batch, channels, targetHeight, targetWidth]);
+  }
+
+  /**
+   * Extract a tile from the latent tensor
+   */
+  private extractTile(
+    latent: ort.Tensor, 
+    startX: number, 
+    startY: number, 
+    tileWidth: number, 
+    tileHeight: number
+  ): ort.Tensor {
+    const [batch, channels, fullHeight, fullWidth] = latent.dims as [number, number, number, number];
+    const inputData = latent.data as Float16Array;
+    
+    const tileData = new Float16Array(batch * channels * tileHeight * tileWidth);
+    
+    for (let b = 0; b < batch; b++) {
+      for (let c = 0; c < channels; c++) {
+        for (let y = 0; y < tileHeight; y++) {
+          for (let x = 0; x < tileWidth; x++) {
+            const srcIdx = b * (channels * fullHeight * fullWidth) + 
+                          c * (fullHeight * fullWidth) + 
+                          (startY + y) * fullWidth + 
+                          (startX + x);
+            const dstIdx = b * (channels * tileHeight * tileWidth) + 
+                          c * (tileHeight * tileWidth) + 
+                          y * tileWidth + x;
+            tileData[dstIdx] = inputData[srcIdx];
+          }
+        }
+      }
+    }
+    
+    return new ort.Tensor('float16', tileData, [batch, channels, tileHeight, tileWidth]);
+  }
+
+  /**
+   * Copy decoded tile data to the output tensor
+   */
+  private copyTileToOutput(
+    tileSample: ort.Tensor,
+    outputTensor: ort.Tensor,
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    actualTileWidth?: number,
+    actualTileHeight?: number
+  ): void {
+    const [tileBatch, tileChannels, tileHeight, tileWidth] = tileSample.dims as [number, number, number, number];
+    const [, outputChannels, outputHeight, outputWidth] = outputTensor.dims as [number, number, number, number];
+    
+    const tileData = tileSample.data as Float32Array;
+    const outputData = outputTensor.data as Float32Array;
+    
+    // Use actual tile dimensions if provided, otherwise calculate from coordinates
+    const copyWidth = actualTileWidth || (endX - startX);
+    const copyHeight = actualTileHeight || (endY - startY);
+    
+    for (let b = 0; b < tileBatch; b++) {
+      for (let c = 0; c < tileChannels; c++) {
+        for (let y = 0; y < copyHeight; y++) {
+          for (let x = 0; x < copyWidth; x++) {
+            const srcIdx = b * (tileChannels * tileHeight * tileWidth) + 
+                          c * (tileHeight * tileWidth) + 
+                          y * tileWidth + x;
+            const dstIdx = b * (outputChannels * outputHeight * outputWidth) + 
+                          c * (outputHeight * outputWidth) + 
+                          (startY + y) * outputWidth + 
+                          (startX + x);
+            outputData[dstIdx] = tileData[srcIdx];
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Get current scheduler name
    */
   getSchedulerName(): string {
@@ -307,13 +509,28 @@ export class TextToImageGenerator {
     // Reset cancellation flag at the start
     this.resetCancellation();
 
-    let { prompt, width = 512, height = 512, steps = 4, guidance = 7.5, seed, scheduler = 'euler-karras' } = options;
+    let { 
+      prompt, 
+      width = 512, 
+      height = 512, 
+      steps = 4, 
+      guidance = 7.5, 
+      seed, 
+      scheduler = 'euler-karras',
+      useTiledVAE = false,
+      tileSize = 512 
+    } = options;
 
     console.log(`Generating image with scheduler: ${scheduler}`);
 
     // Set scheduler if different from current
     if (scheduler !== this.scheduler.name.toLowerCase().replace(/\s+/g, '-')) {
       this.setScheduler(scheduler);
+    }
+
+    // Reset scheduler state (important for LMS scheduler which stores derivatives)
+    if ('reset' in this.scheduler && typeof this.scheduler.reset === 'function') {
+      (this.scheduler as any).reset();
     }
 
     // Set seed for noise generation if provided
@@ -509,15 +726,24 @@ export class TextToImageGenerator {
 
       if (onProgress) onProgress('Decoding with VAE', 0.8);
 
-      // Run VAE decoder
+      // Run VAE decoder (tiled or regular)
       const vaeStartTime = performance.now();
-      const vaeResult = await this.models.vaeDecoder!.sess.run({
-        latent_sample: latent
-      });
+      let sample: ort.Tensor;
+      
+      if (useTiledVAE) {
+        // Use tiled VAE decoding to reduce memory usage
+        console.log(`🧩 Using tiled VAE decoding with tile size: ${tileSize}px`);
+        sample = await this.decodeTiledVAE(latent, width, height, tileSize, onProgress);
+      } else {
+        // Regular VAE decoding
+        const vaeResult = await this.models.vaeDecoder!.sess.run({
+          latent_sample: latent
+        });
+        sample = vaeResult.sample as ort.Tensor;
+      }
+      
       const vaeTime = performance.now() - vaeStartTime;
       console.log(`🎨 VAE decoding completed in ${vaeTime.toFixed(2)}ms`);
-
-      const sample = vaeResult.sample as ort.Tensor;
 
       if (onProgress) onProgress('Converting to image', 0.9);
 

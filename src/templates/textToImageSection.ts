@@ -28,11 +28,22 @@ export const textToImageSectionTemplate = `
           <select id="schedulerSelect">
             <option value="euler-karras">Euler Karras</option>
             <option value="ddpm">DDPM</option>
+            <option value="lms">LMS (Linear Multi-Step)</option>
           </select>
         </div>
         <div class="setting-group">
           <label for="seedInput">Seed (optional):</label>
           <input type="number" id="seedInput" placeholder="Random" min="0" max="999999" />
+        </div>
+        <div class="setting-group">
+          <label for="tiledVAECheck">
+            <input type="checkbox" id="tiledVAECheck" />
+            Tiled VAE (reduces memory usage)
+          </label>
+        </div>
+        <div class="setting-group" id="tileSizeGroup" style="display: none;">
+          <label for="tileSizeSlider">Tile Size: <span id="tileSizeValue">512</span>px</label>
+          <input type="range" id="tileSizeSlider" min="256" max="1024" step="128" value="512" />
         </div>
       </div>
       <div class="model-status">

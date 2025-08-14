@@ -178,6 +178,8 @@ export class ImageGenerator {
       guidance?: number;
       seed?: number;
       scheduler?: SchedulerType;
+      useTiledVAE?: boolean;
+      tileSize?: number;
     } = {},
     onProgress?: (stage: string, progress: number) => void
   ): Promise<void> {
@@ -191,7 +193,9 @@ export class ImageGenerator {
       steps = 20,
       guidance = 7.5,
       seed,
-      scheduler = 'euler-karras'
+      scheduler = 'euler-karras',
+      useTiledVAE = false,
+      tileSize = 512
     } = options;
 
     const resolution = this.resolutions[resolutionKey];
@@ -209,7 +213,9 @@ export class ImageGenerator {
       steps,
       guidance,
       seed,
-      scheduler: scheduler as SchedulerType
+      scheduler: scheduler as SchedulerType,
+      useTiledVAE,
+      tileSize
     };
 
     // Generate the image

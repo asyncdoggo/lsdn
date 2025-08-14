@@ -28,8 +28,12 @@ const stepsSlider = document.querySelector<HTMLInputElement>('#stepsSlider')!;
 const guidanceSlider = document.querySelector<HTMLInputElement>('#guidanceSlider')!;
 const schedulerSelect = document.querySelector<HTMLSelectElement>('#schedulerSelect')!;
 const seedInput = document.querySelector<HTMLInputElement>('#seedInput')!;
+const tiledVAECheck = document.querySelector<HTMLInputElement>('#tiledVAECheck')!;
+const tileSizeSlider = document.querySelector<HTMLInputElement>('#tileSizeSlider')!;
+const tileSizeGroup = document.querySelector<HTMLElement>('#tileSizeGroup')!;;
 const stepsValue = document.querySelector('#stepsValue')!;
 const guidanceValue = document.querySelector('#guidanceValue')!;
+const tileSizeValue = document.querySelector('#tileSizeValue')!;
 const modelStatus = document.querySelector('#modelStatus')!;
 const loadModelsBtn = document.querySelector<HTMLButtonElement>('#loadModelsBtn')!;
 
@@ -127,10 +131,31 @@ guidanceSlider.addEventListener('input', () => {
 schedulerSelect.addEventListener('change', () => {
   let recommendedSteps: number;
   
-  recommendedSteps = 20;
+  switch (schedulerSelect.value) {
+    case 'ddpm':
+      recommendedSteps = 50; // DDPM typically needs more steps
+      break;
+    case 'lms':
+      recommendedSteps = 25; // LMS is more accurate, can use fewer steps than DDPM
+      break;
+    case 'euler-karras':
+    default:
+      recommendedSteps = 20; // Euler-Karras baseline
+      break;
+  }
   
   stepsSlider.value = recommendedSteps.toString();
   stepsValue.textContent = recommendedSteps.toString();
+});
+
+// Tiled VAE checkbox
+tiledVAECheck.addEventListener('change', () => {
+  tileSizeGroup.style.display = tiledVAECheck.checked ? 'block' : 'none';
+});
+
+// Tile size slider
+tileSizeSlider.addEventListener('input', () => {
+  tileSizeValue.textContent = tileSizeSlider.value;
 });
 
 // Load models button
@@ -261,7 +286,9 @@ generateBtn.addEventListener('click', async () => {
         steps: parseInt(stepsSlider.value),
         guidance: parseFloat(guidanceSlider.value),
         scheduler: schedulerSelect.value as SchedulerType,
-        seed: seedInput.value ? parseInt(seedInput.value) : undefined
+        seed: seedInput.value ? parseInt(seedInput.value) : undefined,
+        useTiledVAE: tiledVAECheck.checked,
+        tileSize: parseInt(tileSizeSlider.value)
       };
       
       await imageGenerator.generateFromText(
