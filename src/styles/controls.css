@@ -247,6 +247,26 @@
   border-color: #8b5cf6;
 }
 
+.setting-group select {
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.setting-group select:focus {
+  outline: none;
+  border-color: #8b5cf6;
+}
+
+.setting-group select option {
+  background: rgba(30, 30, 30, 0.95);
+  color: rgba(255, 255, 255, 0.9);
+}
+
 .model-status {
   display: flex;
   flex-direction: column;
@@ -332,7 +352,7 @@
   margin-top: auto;
 }
 
-.generate-btn, .download-btn {
+.generate-btn, .download-btn, .stop-btn {
   flex: 1;
   padding: 0.75rem 1rem;
   border: none;
@@ -355,6 +375,16 @@
 .generate-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.stop-btn {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+}
+
+.stop-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
 }
 
 .download-btn {

@@ -2,6 +2,7 @@ import { PatternRegistry, type PatternType } from './patternRegistry';
 import { ColorManager } from './colorManager';
 import { CanvasUtils } from './canvasUtils';
 import { TextToImageGenerator, type TextToImageOptions } from './textToImageGenerator';
+import type { SchedulerType } from './schedulers';
 
 export interface Resolution {
   width: number;
@@ -176,6 +177,7 @@ export class ImageGenerator {
       steps?: number;
       guidance?: number;
       seed?: number;
+      scheduler?: SchedulerType;
     } = {},
     onProgress?: (stage: string, progress: number) => void
   ): Promise<void> {
@@ -188,7 +190,8 @@ export class ImageGenerator {
       resolutionKey = '512',
       steps = 20,
       guidance = 7.5,
-      seed
+      seed,
+      scheduler = 'euler-karras'
     } = options;
 
     const resolution = this.resolutions[resolutionKey];
@@ -205,7 +208,8 @@ export class ImageGenerator {
       height: resolution.height,
       steps,
       guidance,
-      seed
+      seed,
+      scheduler: scheduler as SchedulerType
     };
 
     // Generate the image
@@ -222,6 +226,15 @@ export class ImageGenerator {
    */
   get isTextToImageReady(): boolean {
     return this.textToImageGenerator?.modelsLoaded ?? false;
+  }
+
+  /**
+   * Cancel the current text-to-image generation
+   */
+  cancelTextToImageGeneration(): void {
+    if (this.textToImageGenerator) {
+      this.textToImageGenerator.cancelGeneration();
+    }
   }
 
   /**

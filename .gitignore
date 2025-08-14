@@ -23,5 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .vscode
-public/models
+public/model
+public/model2
 venv

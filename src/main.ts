@@ -1,5 +1,6 @@
 import './style.css'
 import { ImageGenerator, type PatternType, type ResolutionKey } from './imageGenerator'
+import type { SchedulerType } from './schedulers'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="app-container">
@@ -71,11 +72,18 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
             <div class="ai-settings">
               <div class="setting-group">
                 <label for="stepsSlider">Steps: <span id="stepsValue">20</span></label>
-                <input type="range" id="stepsSlider" min="10" max="50" value="20" />
+                <input type="range" id="stepsSlider" min="1" max="50" value="20" />
               </div>
               <div class="setting-group">
                 <label for="guidanceSlider">Guidance: <span id="guidanceValue">7.5</span></label>
                 <input type="range" id="guidanceSlider" min="1" max="20" step="0.5" value="7.5" />
+              </div>
+              <div class="setting-group">
+                <label for="schedulerSelect">Scheduler:</label>
+                <select id="schedulerSelect">
+                  <option value="euler-karras">Euler Karras (Fast, 4-8 steps)</option>
+                  <option value="ddpm">DDPM (Balanced, 20-50 steps)</option>
+                </select>
               </div>
               <div class="setting-group">
                 <label for="seedInput">Seed (optional):</label>
@@ -462,6 +470,10 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
             <span class="btn-icon">✨</span>
             <span class="btn-text">Generate</span>
           </button>
+          <button id="stop" class="stop-btn" type="button" disabled style="display: none;">
+            <span class="btn-icon">⏹️</span>
+            <span class="btn-text">Stop</span>
+          </button>
           <button id="download" class="download-btn" type="button" disabled>
             <span class="btn-icon">💾</span>
             <span class="btn-text">Download</span>
@@ -493,6 +505,7 @@ let generationMode: 'pattern' | 'text' = 'pattern';
 // Get elements
 const canvas = document.querySelector<HTMLCanvasElement>('#imageCanvas')!
 const generateBtn = document.querySelector<HTMLButtonElement>('#generate')!
+const stopBtn = document.querySelector<HTMLButtonElement>('#stop')!
 const downloadBtn = document.querySelector<HTMLButtonElement>('#download')!
 const canvasOverlay = document.querySelector('.canvas-overlay') as HTMLDivElement;
 const loadingText = document.querySelector('.loading-text') as HTMLParagraphElement;
@@ -502,6 +515,7 @@ const promptInput = document.querySelector<HTMLTextAreaElement>('#promptInput')!
 const negativePromptInput = document.querySelector<HTMLTextAreaElement>('#negativePromptInput')!;
 const stepsSlider = document.querySelector<HTMLInputElement>('#stepsSlider')!;
 const guidanceSlider = document.querySelector<HTMLInputElement>('#guidanceSlider')!;
+const schedulerSelect = document.querySelector<HTMLSelectElement>('#schedulerSelect')!;
 const seedInput = document.querySelector<HTMLInputElement>('#seedInput')!;
 const stepsValue = document.querySelector('#stepsValue')!;
 const guidanceValue = document.querySelector('#guidanceValue')!;
@@ -565,6 +579,26 @@ stepsSlider.addEventListener('input', () => {
 
 guidanceSlider.addEventListener('input', () => {
   guidanceValue.textContent = guidanceSlider.value;
+});
+
+// Scheduler selector with recommended steps
+schedulerSelect.addEventListener('change', () => {
+  const scheduler = schedulerSelect.value;
+  let recommendedSteps: number;
+  
+  switch (scheduler) {
+    case 'euler-karras':
+      recommendedSteps = 4; // Fast scheduler, fewer steps
+      break;
+    case 'ddpm':
+      recommendedSteps = 20; // Balanced scheduler
+      break;
+    default:
+      recommendedSteps = 20;
+  }
+  
+  stepsSlider.value = recommendedSteps.toString();
+  stepsValue.textContent = recommendedSteps.toString();
 });
 
 // Load models button
@@ -659,6 +693,12 @@ generateBtn.addEventListener('click', async () => {
   downloadBtn.disabled = true;
   canvasOverlay.classList.remove('hidden');
   
+  // Show stop button for text-to-image generation
+  if (generationMode === 'text') {
+    stopBtn.style.display = 'flex';
+    stopBtn.disabled = false;
+  }
+  
   // Update button text to show it's generating
   const btnText = generateBtn.querySelector('.btn-text');
   const originalText = btnText?.textContent || 'Generate';
@@ -691,6 +731,7 @@ generateBtn.addEventListener('click', async () => {
         resolutionKey: currentResolution,
         steps: parseInt(stepsSlider.value),
         guidance: parseFloat(guidanceSlider.value),
+        scheduler: schedulerSelect.value as SchedulerType,
         seed: seedInput.value ? parseInt(seedInput.value) : undefined
       };
       
@@ -721,9 +762,25 @@ generateBtn.addEventListener('click', async () => {
     alert(`Error generating image: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
     generateBtn.disabled = false;
+    stopBtn.style.display = 'none';
+    stopBtn.disabled = true;
+    // Reset stop button text
+    const stopBtnText = stopBtn.querySelector('.btn-text');
+    if (stopBtnText) stopBtnText.textContent = 'Stop';
     canvasOverlay.classList.add('hidden');
     if (btnText) btnText.textContent = originalText;
     if (loadingText) loadingText.textContent = 'Generating...';
+  }
+});
+
+// Stop button
+stopBtn.addEventListener('click', () => {
+  if (generationMode === 'text' && !stopBtn.disabled) {
+    imageGenerator.cancelTextToImageGeneration();
+    stopBtn.disabled = true;
+    const btnText = stopBtn.querySelector('.btn-text');
+    if (btnText) btnText.textContent = 'Stopping...';
+    if (loadingText) loadingText.textContent = 'Stopping generation...';
   }
 });
 

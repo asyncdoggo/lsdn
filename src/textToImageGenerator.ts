@@ -1,5 +1,8 @@
 import * as ort from 'onnxruntime-web/webgpu';
 import { AutoTokenizer, env, PreTrainedTokenizer } from '@xenova/transformers';
+import { BaseScheduler, SchedulerRegistry } from './schedulers';
+import type { SchedulerType } from './schedulers';
+import { NoiseGenerator } from './utils/noiseGenerator';
 
 env.allowLocalModels = false;
 env.useBrowserCache = false;
@@ -12,12 +15,17 @@ export interface TextToImageOptions {
   steps: number;
   guidance: number;
   seed?: number;
+  scheduler?: SchedulerType;
 }
 
+
+const BASE_URL = "/model2";
+
 const urls = {
-  "unet": "/models/unet.onnx",
-  "textEncoder": "/models/text_encoder.onnx",
-  "vaeDecoder": "/models/vae_decoder.onnx"
+  "unet": `${BASE_URL}/unet/model.onnx`,
+  "textEncoder": `${BASE_URL}/text_encoder/model.onnx`,
+  "vaeDecoder": `${BASE_URL}/vae_decoder/model.onnx`,
+  "weights_url": `${BASE_URL}/unet/weights.pb`
 }
 
 export class TextToImageGenerator {
@@ -29,6 +37,9 @@ export class TextToImageGenerator {
   private isLoaded = false;
   private tokenizer: PreTrainedTokenizer | null = null;
   private currentLatentDimensions: [number, number] | null = null;
+  private scheduler: BaseScheduler;
+  private noiseGenerator: NoiseGenerator;
+  private isCancelled: boolean = false;
 
   // Model configuration templates
   private readonly modelConfig = {
@@ -51,23 +62,22 @@ export class TextToImageGenerator {
     },
     unet: {
       url: urls.unet,
-      weightsUrl: "/models/weights.pb",
+      weightsUrl: urls.weights_url,
       baseOpt: { 
         externalData: [{
           path: './weights.pb',
-          data: "/models/weights.pb"
+          data: urls.weights_url
         }],
         executionProviders: ['webgpu'],
         enableMemPattern: false,
         enableCpuMemArena: false,
-        graphOptimizationLevel: 'basic' as const,
+        graphOptimizationLevel: 'all' as const,
         extra: {
           session: {
             disable_prepacking: "1",
             use_device_allocator_for_initializers: "1",
             use_ort_model_bytes_directly: "1",
             use_ort_model_bytes_for_initializers: "1",
-            memory_limit: "2147483648"
           }
         }
       }
@@ -93,7 +103,11 @@ export class TextToImageGenerator {
   // Constants for SD pipeline
   private readonly vaeScalingFactor = 0.18215;
 
-  constructor() {
+  constructor(schedulerType: SchedulerType = 'euler-karras') {
+    // Initialize scheduler and noise generator
+    this.scheduler = SchedulerRegistry.createScheduler(schedulerType);
+    this.noiseGenerator = new NoiseGenerator();
+
     // Configure ONNX Runtime
     ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
     ort.env.wasm.numThreads = 1;
@@ -166,121 +180,38 @@ export class TextToImageGenerator {
   }
 
   /**
-   * Generate random latents with proper distribution
+   * Set the scheduler type
    */
-  private generateRandomLatents(shape: number[], noiseSigma: number, seed?: number): Float16Array {
-    // Set seed if provided
-    if (seed !== undefined) {
-      Math.random = this.seededRandom(seed);
-    }
-
-    function randn() {
-      // Box-Muller transform for normal distribution
-      let u = Math.random();
-      let v = Math.random();
-      let z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-      return z;
-    }
-
-    let size = 1;
-    shape.forEach(element => {
-      size *= element;
-    });
-
-    let data = new Float16Array(size);
-    for (let i = 0; i < size; i++) {
-      data[i] = randn() * noiseSigma;
-    }
-    return data;
+  setScheduler(schedulerType: SchedulerType): void {
+    this.scheduler = SchedulerRegistry.createScheduler(schedulerType);
   }
 
   /**
-   * Simple seedable random number generator
+   * Get current scheduler name
    */
-  private seededRandom(seed: number) {
-    return function() {
-      seed = Math.sin(seed) * 10000;
-      return seed - Math.floor(seed);
-    };
+  getSchedulerName(): string {
+    return this.scheduler.name;
   }
 
   /**
-   * Generate timesteps for Euler-Karras scheduler
+   * Get all available scheduler types
    */
-  private generateKarrasTimesteps(steps: number): { timesteps: number[], sigmas: number[] } {
-    // Karras noise schedule parameters
-    const sigmaMin = 0.0292;
-    const sigmaMax = 14.6146;
-    const rho = 7.0;
-    
-    const timesteps: number[] = [];
-    const sigmas: number[] = [];
-    
-    // Generate karras sigmas using proper exponential schedule
-    for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1);
-      const minInvRho = sigmaMin ** (1 / rho);
-      const maxInvRho = sigmaMax ** (1 / rho);
-      const sigma = (maxInvRho + t * (minInvRho - maxInvRho)) ** rho;
-      sigmas.push(sigma);
-      
-      // Convert sigma to timestep using proper formula
-      const timestep = 1000 * sigma / sigmaMax;
-      timesteps.push(timestep);
-    }
-    
-    // Add final sigma of 0
-    sigmas.push(0);
-    
-    return { timesteps, sigmas };
+  static getAvailableSchedulers(): SchedulerType[] {
+    return SchedulerRegistry.getAvailableSchedulers();
   }
 
   /**
-   * Scale model inputs according to Euler-Karras scheduler
+   * Cancel the current generation process
    */
-  private scaleModelInputs(tensor: ort.Tensor, sigma: number): ort.Tensor {
-    const inputData = tensor.data as Float16Array;
-    const outputData = new Float16Array(inputData.length);
-    
-    // Scale input by sigma for Euler-Karras
-    const scaleFactor = 1.0 / Math.sqrt(sigma ** 2 + 1);
-    for (let i = 0; i < inputData.length; i++) {
-      outputData[i] = inputData[i] * scaleFactor;
-    }
-    
-    return new ort.Tensor('float16', outputData, tensor.dims);
+  cancelGeneration(): void {
+    this.isCancelled = true;
   }
 
   /**
-   * Perform Euler-Karras scheduler step
+   * Reset cancellation flag
    */
-  private eulerKarrasStep(
-    modelOutput: ort.Tensor, 
-    sample: ort.Tensor, 
-    sigma: number, 
-    sigmaNext: number
-  ): ort.Tensor {
-    const outputData = new Float16Array(modelOutput.data.length);
-    
-    // For diffusion models, the model output is the predicted noise
-    const dt = sigmaNext - sigma;
-    
-    for (let i = 0; i < modelOutput.data.length; i++) {
-      // Compute the derivative: d_x = (x - sigma * eps) / sigma
-      const x = (sample.data as Float16Array)[i];
-      const eps = (modelOutput.data as Float16Array)[i];
-      
-      // Predict original sample
-      const predOrigSample = x - sigma * eps;
-      
-      // Compute derivative for Euler step
-      const derivative = (x - predOrigSample) / sigma;
-      
-      // Apply Euler step: x_new = x + derivative * dt
-      outputData[i] = x + derivative * dt;
-    }
-
-    return new ort.Tensor('float16', outputData, modelOutput.dims);
+  private resetCancellation(): void {
+    this.isCancelled = false;
   }
 
   /**
@@ -288,7 +219,7 @@ export class TextToImageGenerator {
    */
   private async fetchAndCache(url: string): Promise<ArrayBuffer> {
     try {
-      const cache = await caches.open("onnx-models");
+      const cache = await caches.open("onnx");
       let cachedResponse = await cache.match(url);
       if (cachedResponse === undefined) {
         await cache.add(url);
@@ -355,7 +286,22 @@ export class TextToImageGenerator {
       throw new Error('Models not loaded. Call loadModels() first.');
     }
 
-    let { prompt, width = 512, height = 512, steps = 4, guidance = 7.5, seed } = options;
+    // Reset cancellation flag at the start
+    this.resetCancellation();
+
+    let { prompt, width = 512, height = 512, steps = 4, guidance = 7.5, seed, scheduler = 'euler-karras' } = options;
+
+    console.log(`Generating image with scheduler: ${scheduler}`);
+
+    // Set scheduler if different from current
+    if (scheduler !== this.scheduler.name.toLowerCase().replace(/\s+/g, '-')) {
+      this.setScheduler(scheduler);
+    }
+
+    // Set seed for noise generation if provided
+    if (seed !== undefined) {
+      this.noiseGenerator.setSeed(seed);
+    }
 
     try {
       if (onProgress) onProgress('Encoding text prompt', 0.1);
@@ -385,7 +331,7 @@ export class TextToImageGenerator {
       // Generate random latents with correct dimensions for the target resolution
       const [latentHeight, latentWidth] = this.getLatentDimensions(width, height);
       const latentShape = [1, 4, latentHeight, latentWidth];
-      const latentData = this.generateRandomLatents(latentShape, 1.0, seed);
+      const latentData = this.noiseGenerator.generateRandomLatents(latentShape, 1.0);
       let latent = new ort.Tensor('float16', latentData, latentShape);
 
       // Check if we need to recreate models for this resolution
@@ -419,28 +365,30 @@ export class TextToImageGenerator {
 
       if (onProgress) onProgress('Running UNet denoising', 0.3);
 
-      // Generate Karras timesteps and sigmas
-      const { timesteps, sigmas } = this.generateKarrasTimesteps(steps);
+      // Generate timesteps and sigmas using the scheduler
+      const timestepData = this.scheduler.generateTimesteps(steps);
       
-      // Scale initial latents by first sigma
-      const initialSigma = sigmas[0];
-      const scaledLatentData = new Float16Array(latent.data.length);
-      for (let i = 0; i < latent.data.length; i++) {
-        scaledLatentData[i] = (latent.data as Float16Array)[i] * initialSigma;
-      }
-      latent = new ort.Tensor('float16', scaledLatentData, latent.dims);
+      // Scale initial latents using scheduler
+      latent = this.scheduler.scaleInitialNoise(latent, timestepData);
       
       // Denoising loop
       for (let stepIndex = 0; stepIndex < steps; stepIndex++) {
-        const timestep = timesteps[stepIndex];
-        const sigma = sigmas[stepIndex];
-        const sigmaNext = sigmas[stepIndex + 1];
+        // Check for cancellation
+        if (this.isCancelled) {
+          console.log(`Generation cancelled at step ${stepIndex + 1}/${steps}`);
+          if (onProgress) onProgress(`Cancelled at step ${stepIndex + 1}`, 0.7);
+          break;
+        }
+
+        const timestep = timestepData.timesteps[stepIndex];
+        const sigma = timestepData.sigmas[stepIndex];
+        const sigmaNext = timestepData.sigmas[stepIndex + 1];
         const progressBase = 0.3 + (stepIndex / steps) * 0.4; // 0.3 to 0.7
         
         if (onProgress) onProgress(`Denoising step ${stepIndex + 1}/${steps}`, progressBase);
 
-        // Scale latents for model input
-        const latentModelInput = this.scaleModelInputs(latent, sigma);
+        // Scale latents for model input using scheduler
+        const latentModelInput = this.scheduler.scaleModelInputs(latent, stepIndex, sigma);
 
         // Convert timestep to float16
         const timestepFloat16 = new Float16Array([timestep]);
@@ -489,8 +437,9 @@ export class TextToImageGenerator {
           outSample = new ort.Tensor('float16', guidedOutputData, latentModelInput.dims);
         }
 
-        // Apply Euler-Karras step
-        latent = this.eulerKarrasStep(outSample, latent, sigma, sigmaNext);
+        // Apply scheduler step
+        const stepResult = this.scheduler.step(outSample, latent, stepIndex, sigma, sigmaNext);
+        latent = stepResult.prevSample;
       }
 
       // Apply VAE scaling factor after denoising is complete
