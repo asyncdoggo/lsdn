@@ -18,7 +18,7 @@ const canvas = document.querySelector<HTMLCanvasElement>('#imageCanvas')!
 const generateBtn = document.querySelector<HTMLButtonElement>('#generate')!
 const stopBtn = document.querySelector<HTMLButtonElement>('#stop')!
 const downloadBtn = document.querySelector<HTMLButtonElement>('#download')!
-const canvasOverlay = document.querySelector('.canvas-overlay') as HTMLDivElement;
+const statusSection = document.querySelector('.status-section') as HTMLDivElement;
 const loadingText = document.querySelector('.loading-text') as HTMLParagraphElement;
 
 // Text-to-image elements
@@ -227,7 +227,7 @@ generateBtn.addEventListener('click', async () => {
   
   generateBtn.disabled = true;
   downloadBtn.disabled = true;
-  canvasOverlay.classList.remove('hidden');
+  statusSection.classList.remove('hidden');
   
   // Show stop button for text-to-image generation
   if (generationMode === 'text') {
@@ -276,6 +276,26 @@ generateBtn.addEventListener('click', async () => {
         options,
         (stage, progress) => {
           if (loadingText) loadingText.textContent = `${stage} (${Math.round(progress * 100)}%)`;
+        },
+        (previewImageData) => {
+          // Update canvas with preview during generation
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            // Set up canvas for 64x64 preview and clear any previous content
+            canvas.width = 64;
+            canvas.height = 64;
+            
+            // Clear the canvas explicitly (though setting width/height should do this)
+            ctx.clearRect(0, 0, 64, 64);
+            
+            // Draw the preview
+            ctx.putImageData(previewImageData, 0, 0);
+            
+            // Scale canvas display for visibility while keeping internal resolution at 64x64
+            canvas.style.width = '256px';
+            canvas.style.height = '256px';
+            canvas.style.imageRendering = 'pixelated';
+          }
         }
       );
       
@@ -302,7 +322,7 @@ generateBtn.addEventListener('click', async () => {
     // Reset stop button text
     const stopBtnText = stopBtn.querySelector('.btn-text');
     if (stopBtnText) stopBtnText.textContent = 'Stop';
-    canvasOverlay.classList.add('hidden');
+    statusSection.classList.add('hidden');
     if (btnText) btnText.textContent = originalText;
     if (loadingText) loadingText.textContent = 'Generating...';
   }

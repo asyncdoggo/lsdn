@@ -12,6 +12,9 @@ export {
   type GPUMetrics
 } from './performanceMonitor';
 
+// Latent preview utilities
+export { LatentPreview } from './latentPreview';
+
 // Background processing
 export type { 
   WorkerMessage, 

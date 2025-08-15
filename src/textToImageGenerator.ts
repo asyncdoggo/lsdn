@@ -6,6 +6,7 @@ import { NoiseGenerator } from './utils/noiseGenerator';
 import { TensorPool } from './utils/tensorPool';
 import { AsyncPipeline, OptimizedTensorOps } from './utils/asyncPipeline';
 import { PerformanceMonitor, timed } from './utils/performanceMonitor';
+import { LatentPreview } from './utils/latentPreview';
 
 // Do not change the below or PretrainedTokenizer will not work
 env.allowLocalModels = false;
@@ -660,11 +661,7 @@ export class TextToImageGenerator {
         sess: await this.createUNetSession(latentHeight, latentWidth)
       };
 
-      if (onProgress) onProgress('Loading VAE Decoder for 512px', 0.8);
-      
-      this.models.vaeDecoder = {
-        sess: await this.createVAESession(latentHeight, latentWidth)
-      };
+      // No need to load VAE here, since it will be loaded later
 
       // Store current dimensions as 512px
       this.currentLatentDimensions = [latentHeight, latentWidth];
@@ -691,7 +688,8 @@ export class TextToImageGenerator {
    */
   async generateImage(
     options: TextToImageOptions,
-    onProgress?: (stage: string, progress: number) => void
+    onProgress?: (stage: string, progress: number) => void,
+    onPreview?: (previewImageData: ImageData) => void
   ): Promise<ImageData> {
     const startTime = performance.now();
     this.performanceMonitor.startSession();
@@ -934,6 +932,16 @@ export class TextToImageGenerator {
         
         latent = stepResult.prevSample;
         this.performanceMonitor.recordTensorOp('create', latent.size * 2); // Track new latent
+        
+        // Generate preview if callback is provided
+        if (onPreview && stepIndex % 2 === 0) { // Generate preview every 2 steps to reduce overhead
+          try {
+            const previewImageData = LatentPreview.latentToRGBAdvanced(latent, 64, 64);
+            onPreview(previewImageData);
+          } catch (error) {
+            console.warn('Preview generation failed:', error);
+          }
+        }
         
         const stepTime = performance.now() - stepStartTime;
         console.log(`  ⏱️  Step ${stepIndex + 1} completed in ${stepTime.toFixed(2)}ms (UNet: ${unetTime.toFixed(2)}ms)`);

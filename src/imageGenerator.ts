@@ -181,7 +181,8 @@ export class ImageGenerator {
       useTiledVAE?: boolean;
       tileSize?: number;
     } = {},
-    onProgress?: (stage: string, progress: number) => void
+    onProgress?: (stage: string, progress: number) => void,
+    onPreview?: (previewImageData: ImageData) => void
   ): Promise<void> {
     if (!this.textToImageGenerator) {
       throw new Error('Text-to-image generator not initialized. Call initializeTextToImage() first.');
@@ -219,7 +220,7 @@ export class ImageGenerator {
     };
 
     // Generate the image
-    const imageData = await this.textToImageGenerator.generateImage(textToImageOptions, onProgress);
+    const imageData = await this.textToImageGenerator.generateImage(textToImageOptions, onProgress, onPreview);
 
     // Setup canvas and display the generated image
     const ctx = CanvasUtils.setupCanvas(canvas, resolution);

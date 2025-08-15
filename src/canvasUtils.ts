@@ -22,6 +22,8 @@ export class CanvasUtils {
     
     canvas.style.width = `${displayWidth}px`;
     canvas.style.height = `${displayHeight}px`;
+    // Reset image rendering for high-resolution final images
+    canvas.style.imageRendering = 'auto';
   }
 
   /**
@@ -44,9 +46,12 @@ export class CanvasUtils {
       throw new Error('Unable to get canvas context');
     }
 
-    // Set canvas dimensions
+    // Set canvas dimensions (this automatically clears the canvas)
     canvas.width = resolution.width;
     canvas.height = resolution.height;
+    
+    // Explicitly clear the canvas to ensure no previous content remains
+    ctx.clearRect(0, 0, resolution.width, resolution.height);
     
     return ctx;
   }
