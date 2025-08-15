@@ -29,6 +29,7 @@ export const textToImageSectionTemplate = `
             <option value="euler-karras">Euler Karras</option>
             <option value="ddpm">DDPM</option>
             <option value="lms">LMS (Linear Multi-Step)</option>
+            <option value="heun">Heun (2nd Order)</option>
           </select>
         </div>
         <div class="setting-group">
@@ -37,11 +38,11 @@ export const textToImageSectionTemplate = `
         </div>
         <div class="setting-group">
           <label for="tiledVAECheck">
-            <input type="checkbox" id="tiledVAECheck" />
+            <input type="checkbox" id="tiledVAECheck" checked />
             Tiled VAE (reduces memory usage)
           </label>
         </div>
-        <div class="setting-group" id="tileSizeGroup" style="display: none;">
+        <div class="setting-group" id="tileSizeGroup">
           <label for="tileSizeSlider">Tile Size: <span id="tileSizeValue">256</span>px</label>
           <input type="range" id="tileSizeSlider" min="64" max="512" step="64" value="256" />
         </div>
