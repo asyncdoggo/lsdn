@@ -1,0 +1,329 @@
+import * as ort from 'onnxruntime-web/webgpu';
+import { AutoTokenizer, env, PreTrainedTokenizer } from '@xenova/transformers';
+
+// Do not change the below or PretrainedTokenizer will not work
+env.allowLocalModels = false;
+env.useBrowserCache = false;
+
+const BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
+
+export const MODEL_URLS = {
+  "unet": `${BASE_URL}/unet/model.onnx`,
+  "textEncoder": `${BASE_URL}/text_encoder/model.onnx`,
+  "vaeDecoder": `${BASE_URL}/vae_decoder/model.onnx`,
+  "weights_url": `${BASE_URL}/unet/weights.pb`
+};
+
+export interface ModelSessions {
+  textEncoder?: { sess: ort.InferenceSession };
+  unet?: { sess: ort.InferenceSession };
+  vaeDecoder?: { sess: ort.InferenceSession };
+}
+
+export class ModelManager {
+  private models: ModelSessions = {};
+  private isLoaded = false;
+  private tokenizer: PreTrainedTokenizer | null = null;
+  private currentLatentDimensions: [number, number] | null = null;
+
+  // Model configuration templates
+  private readonly modelConfig = {
+    textEncoder: {
+      url: MODEL_URLS.textEncoder,
+      opt: { 
+        freeDimensionOverrides: { batch_size: 1 },
+        executionProviders: ['webgpu'],
+        enableMemPattern: false,
+        enableCpuMemArena: false,
+        extra: {
+          session: {
+            disable_prepacking: "1",
+            use_device_allocator_for_initializers: "1",
+            use_ort_model_bytes_directly: "1",
+            use_ort_model_bytes_for_initializers: "1"
+          }
+        }
+      }
+    },
+    unet: {
+      url: MODEL_URLS.unet,
+      weightsUrl: MODEL_URLS.weights_url,
+      baseOpt: { 
+        externalData: [{
+          path: './weights.pb',
+          data: MODEL_URLS.weights_url
+        }],
+        executionProviders: ['webgpu'],
+        enableMemPattern: false,
+        enableCpuMemArena: false,
+        graphOptimizationLevel: 'all' as const,
+        executionMode: 'parallel' as const,
+        interOpNumThreads: 0, // Use all available threads
+        intraOpNumThreads: 0, // Use all available threads
+        extra: {
+          session: {
+            disable_prepacking: "0", // Enable prepacking for better performance
+            use_device_allocator_for_initializers: "1",
+            use_ort_model_bytes_directly: "1",
+            use_ort_model_bytes_for_initializers: "1",
+            enable_cpu_mem_arena: "0",
+            enable_mem_pattern: "0",
+            execution_mode: "ORT_PARALLEL", // Parallel execution
+            inter_op_num_threads: "0", // Use all threads
+            intra_op_num_threads: "0", // Use all threads
+          }
+        }
+      }
+    },
+    vaeDecoder: {
+      url: MODEL_URLS.vaeDecoder,
+      baseOpt: { 
+        executionProviders: ['webgpu'],
+        enableMemPattern: false,
+        enableCpuMemArena: false,
+        extra: {
+          session: {
+            disable_prepacking: "1",
+            use_device_allocator_for_initializers: "1",
+            use_ort_model_bytes_directly: "1",
+            use_ort_model_bytes_for_initializers: "1"
+          }
+        }
+      }
+    }
+  };
+
+  constructor() {
+    // Configure ONNX Runtime
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+    ort.env.wasm.numThreads = 1;
+    ort.env.logLevel = 'warning';
+
+    // Check WebGPU support
+    if (!('gpu' in navigator)) {
+      console.warn('WebGPU not supported, falling back to WASM');
+      // Fallback to WASM for all models
+      this.modelConfig.textEncoder.opt.executionProviders = ['wasm'];
+      this.modelConfig.unet.baseOpt.executionProviders = ['wasm'];
+      this.modelConfig.vaeDecoder.baseOpt.executionProviders = ['wasm'];
+    }
+  }
+
+  /**
+   * Generate latent dimensions based on actual image dimensions
+   */
+  getLatentDimensions(width: number, height: number): [number, number] {
+    // VAE encoder downsamples by factor of 8
+    return [height / 8, width / 8];
+  }
+
+  /**
+   * Create UNet session with specific dimensions
+   */
+  async createUNetSession(latentHeight: number, latentWidth: number): Promise<ort.InferenceSession> {
+    const unetBytes = await this.fetchAndCache(this.modelConfig.unet.url);
+    let weightsBytes = new ArrayBuffer(0);
+    
+    if (this.modelConfig.unet.weightsUrl) {
+      weightsBytes = await this.fetchAndCache(this.modelConfig.unet.weightsUrl);
+    }
+
+    const unetOptions = {
+      ...this.modelConfig.unet.baseOpt,
+      freeDimensionOverrides: {
+        batch_size: 2, // Support batched CFG inference (negative + positive)
+        num_channels: 4, 
+        height: latentHeight, 
+        width: latentWidth, 
+        sequence_length: 77 
+      },
+      externalData: this.modelConfig.unet.weightsUrl ? [{
+        data: weightsBytes,
+        path: "./weights.pb"
+      }] : undefined
+    };
+
+    return await ort.InferenceSession.create(unetBytes, unetOptions);
+  }
+
+  /**
+   * Create VAE decoder session with specific dimensions
+   */
+  async createVAESession(latentHeight: number, latentWidth: number): Promise<ort.InferenceSession> {
+    const vaeBytes = await this.fetchAndCache(this.modelConfig.vaeDecoder.url);
+    
+    const vaeOptions = {
+      ...this.modelConfig.vaeDecoder.baseOpt,
+      freeDimensionOverrides: {
+        batch_size: 1, 
+        num_channels_latent: 4, 
+        height_latent: latentHeight, 
+        width_latent: latentWidth 
+      }
+    };
+
+    return await ort.InferenceSession.create(vaeBytes, vaeOptions);
+  }
+
+  /**
+   * Fetch and cache model files
+   */
+  private async fetchAndCache(url: string): Promise<ArrayBuffer> {
+    try {
+      const cache = await caches.open("onnx");
+      let cachedResponse = await cache.match(url);
+      if (cachedResponse === undefined) {
+        await cache.add(url);
+        cachedResponse = await cache.match(url);
+        console.log(`${url} (network)`);
+      } else {
+        console.log(`${url} (cached)`);
+      }
+      if (cachedResponse) {
+        return await cachedResponse.arrayBuffer();
+      }
+      throw new Error('Failed to cache response');
+    } catch (error) {
+      console.log(`${url} (network fallback)`);
+      return await fetch(url).then(response => response.arrayBuffer());
+    }
+  }
+
+  /**
+   * Use Hugging Face tokenizer for text encoding
+   */
+  private async initializeTokenizer(): Promise<void> {
+    this.tokenizer = await AutoTokenizer.from_pretrained('Xenova/clip-vit-base-patch16');
+    this.tokenizer.pad_token_id = 0;
+  }
+
+  /**
+   * Load text encoder and tokenizer (UNet and VAE loaded on-demand)
+   */
+  async loadModels(onProgress?: (stage: string, progress: number) => void): Promise<void> {
+    if (this.isLoaded) return;
+
+    try {
+      if (onProgress) onProgress('Loading Text Encoder', 0.2);
+      
+      // Load text encoder (this one doesn't depend on resolution)
+      const textEncoderBytes = await this.fetchAndCache(this.modelConfig.textEncoder.url);
+      this.models.textEncoder = {
+        sess: await ort.InferenceSession.create(textEncoderBytes, this.modelConfig.textEncoder.opt)
+      };
+
+      if (onProgress) onProgress('Loading Tokenizer', 0.4);
+      
+      // Load tokenizer
+      await this.initializeTokenizer();
+
+      if (onProgress) onProgress('Loading UNet for 512px', 0.6);
+      
+      // Load UNet for default 512px resolution
+      const [latentHeight, latentWidth] = this.getLatentDimensions(512, 512);
+      
+      this.models.unet = {
+        sess: await this.createUNetSession(latentHeight, latentWidth)
+      };
+
+      // Store current dimensions as 512px
+      this.currentLatentDimensions = [latentHeight, latentWidth];
+
+      this.isLoaded = true;
+      if (onProgress) onProgress('Models Loaded', 1.0);
+      
+    } catch (error) {
+      console.error('Failed to load models:', error);
+      throw new Error(`Model loading failed: ${error}`);
+    }
+  }
+
+  /**
+   * Check if we need to recreate models for a different resolution
+   */
+  needsNewModels(latentHeight: number, latentWidth: number): boolean {
+    // Check if UNet exists for the requested dimensions
+    const unetMissing = this.models.unet?.sess === undefined;
+    
+    // Check if dimensions have changed
+    const dimensionsChanged = this.currentLatentDimensions?.[0] !== latentHeight ||
+                             this.currentLatentDimensions?.[1] !== latentWidth;
+    
+    const needsReload = unetMissing || dimensionsChanged;
+    
+    return needsReload;
+  }
+
+  /**
+   * Update models for new resolution
+   */
+  async updateModelsForResolution(latentHeight: number, latentWidth: number): Promise<void> {
+    console.log(`🔄 Updating models for resolution: [${latentHeight}, ${latentWidth}]`);
+    
+    // Dispose existing UNet session if it exists
+    if (this.models.unet?.sess) {
+      console.log('🗑️ Disposing existing UNet session');
+      await this.models.unet.sess.release();
+    }
+    
+    // Note: VAE decoder is loaded on-demand, so we don't need to dispose it here
+    // It will be created fresh when needed for the specific resolution
+
+    // Create new UNet session with correct dimensions
+    console.log('🏗️ Creating new UNet session');
+    this.models.unet = {
+      sess: await this.createUNetSession(latentHeight, latentWidth)
+    };
+
+    // Store current dimensions
+    this.currentLatentDimensions = [latentHeight, latentWidth];
+    console.log(`✅ Models updated for dimensions [${latentHeight}, ${latentWidth}]`);
+  }
+
+  /**
+   * Get models (for external access)
+   */
+  getModels(): ModelSessions {
+    return this.models;
+  }
+
+  /**
+   * Get tokenizer (for external access)
+   */
+  getTokenizer(): PreTrainedTokenizer | null {
+    return this.tokenizer;
+  }
+
+  /**
+   * Check if models are loaded
+   */
+  get modelsLoaded(): boolean {
+    return this.isLoaded;
+  }
+
+  /**
+   * Get current latent dimensions
+   */
+  getCurrentLatentDimensions(): [number, number] | null {
+    return this.currentLatentDimensions;
+  }
+
+  /**
+   * Dispose of all models and free memory
+   */
+  async dispose(): Promise<void> {
+    if (this.models.textEncoder?.sess) {
+      await this.models.textEncoder.sess.release();
+    }
+    if (this.models.unet?.sess) {
+      await this.models.unet.sess.release();
+    }
+    if (this.models.vaeDecoder?.sess) {
+      await this.models.vaeDecoder.sess.release();
+    }
+    
+    this.models = {};
+    this.isLoaded = false;
+    this.currentLatentDimensions = null;
+  }
+}

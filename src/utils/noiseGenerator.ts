@@ -73,13 +73,16 @@ export class NoiseGenerator {
   }
 
   /**
-   * Create a simple seedable random number generator
+   * Create a proper seedable random number generator using Linear Congruential Generator (LCG)
+   * This provides better distribution than the sin-based approach
    */
   private createSeededRandom(seed: number): () => number {
     let currentSeed = seed;
     return function() {
-      currentSeed = Math.sin(currentSeed) * 10000;
-      return currentSeed - Math.floor(currentSeed);
+      // LCG formula: (a * seed + c) % m
+      // Using values from Numerical Recipes
+      currentSeed = (currentSeed * 1664525 + 1013904223) % 0x100000000;
+      return currentSeed / 0x100000000;
     };
   }
 

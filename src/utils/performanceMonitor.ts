@@ -195,7 +195,7 @@ export class PerformanceMonitor {
   /**
    * Get stage start time (simplified implementation)
    */
-  private getStageStartTime(stageName: string): number {
+  private getStageStartTime(_stageName: string): number {
     // In a real implementation, you'd track start times for each stage
     // For now, return current time minus a small offset
     return performance.now() - 1;
@@ -237,46 +237,6 @@ export class PerformanceMonitor {
     return report;
   }
 
-  /**
-   * Get optimization suggestions
-   */
-  getOptimizationSuggestions(metrics: PerformanceMetrics): string[] {
-    const suggestions: string[] = [];
-    
-    // Check memory usage
-    const memoryUsageMB = metrics.memoryUsage.heapUsed / 1024 / 1024;
-    if (memoryUsageMB > 1000) {
-      suggestions.push('High memory usage detected. Consider reducing batch size or enabling tiled processing.');
-    }
-    
-    // Check tensor pool efficiency (fix NaN calculation)
-    const totalPoolOps = metrics.tensorStats.poolHits + metrics.tensorStats.poolMisses;
-    if (totalPoolOps > 0) {
-      const poolHitRate = metrics.tensorStats.poolHits / totalPoolOps;
-      if (poolHitRate < 0.7) {
-        suggestions.push(`Low tensor pool hit rate (${(poolHitRate * 100).toFixed(1)}%). Consider increasing pool size or optimizing tensor reuse.`);
-      }
-    }
-    
-    // Check stage distribution
-    const sortedStages = Array.from(metrics.stages.values()).sort((a, b) => b.percentage - a.percentage);
-    if (sortedStages.length > 0 && sortedStages[0].percentage > 60) {
-      suggestions.push(`${sortedStages[0].name} is taking ${sortedStages[0].percentage.toFixed(1)}% of total time. Consider optimizing this stage.`);
-    }
-    
-    // Check for inefficient patterns
-    if (metrics.tensorStats.disposed > metrics.tensorStats.reused * 2) {
-      suggestions.push('Low tensor reuse detected. Consider implementing more aggressive tensor pooling.');
-    }
-    
-    // Check UNet performance
-    const unetStage = metrics.stages.get('unet_inference');
-    if (unetStage && unetStage.percentage > 80) {
-      suggestions.push(`UNet inference is ${unetStage.percentage.toFixed(1)}% of total time. Consider reducing steps or using a faster scheduler.`);
-    }
-    
-    return suggestions;
-  }
 
   /**
    * Enable/disable monitoring
@@ -312,7 +272,7 @@ export class PerformanceMonitor {
  * Performance timing decorator
  */
 export function timed(stageName: string) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
+  return function (_target: any, _propertyName: string, descriptor: PropertyDescriptor) {
     const method = descriptor.value;
     
     descriptor.value = async function (...args: any[]) {

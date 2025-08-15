@@ -15,13 +15,6 @@ export {
 // Latent preview utilities
 export { LatentPreview } from './latentPreview';
 
-// Background processing
-export type { 
-  WorkerMessage, 
-  WorkerResponse, 
-  TensorOperation 
-} from './backgroundWorker';
-
 // Import for internal use
 import { TensorPool } from './tensorPool';
 import { OptimizedTensorOps } from './asyncPipeline';
