@@ -1,5 +1,3 @@
-import * as ort from 'onnxruntime-web/webgpu';
-
 /**
  * Async pipeline for overlapping computation and memory operations
  */
@@ -76,7 +74,6 @@ export class AsyncPipeline {
  * Optimized tensor operations with SIMD and WebAssembly acceleration
  */
 export class OptimizedTensorOps {
-  private static wasmModule: any = null;
   private static isInitialized = false;
 
   /**
@@ -254,7 +251,7 @@ export class OptimizedTensorOps {
     const boxRadius = Math.sqrt((radius * radius * 12 / iterations) + 1);
     const r = Math.floor(boxRadius);
     
-    let temp = new Float32Array(input.length);
+    const temp = new Float32Array(input.length);
     
     for (let iter = 0; iter < iterations; iter++) {
       // Horizontal pass
