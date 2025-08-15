@@ -203,30 +203,38 @@ export class TextToImageGenerator {
     const latentWidth = width / 8;
     const tileSizeLatent = tileSize / 8; // Convert tile size to latent space
     
-    // Calculate number of tiles needed
-    const tilesX = Math.ceil(latentWidth / tileSizeLatent);
-    const tilesY = Math.ceil(latentHeight / tileSizeLatent);
+    // Add overlap to reduce seams (in latent space)
+    const overlapLatent = Math.min(tileSizeLatent / 4, 8); // 25% overlap, max 64px in image space
+    const strideLatent = tileSizeLatent - overlapLatent;
+    
+    // Calculate number of tiles needed with overlap
+    const tilesX = Math.ceil((latentWidth - overlapLatent) / strideLatent);
+    const tilesY = Math.ceil((latentHeight - overlapLatent) / strideLatent);
     const totalTiles = tilesX * tilesY;
     
-    console.log(`🧩 Using tiled VAE: ${tilesX}x${tilesY} tiles (${totalTiles} total), tile size: ${tileSize}px`);
+    console.log(`🧩 Using tiled VAE: ${tilesX}x${tilesY} tiles (${totalTiles} total), tile size: ${tileSize}px, overlap: ${overlapLatent * 8}px`);
     
     // Create output tensor for final image
     const outputChannels = 3; // RGB
     const outputData = new Float32Array(1 * outputChannels * height * width);
     const outputTensor = new ort.Tensor('float32', outputData, [1, outputChannels, height, width]);
     
-    // Create a single VAE session that can handle the maximum tile size
-    // Use the tile size in latent space for the VAE session
-    const vaeSession = await this.createVAESession(tileSizeLatent, tileSizeLatent);
+    // Create weight tensor for blending overlapping regions
+    const weightData = new Float32Array(1 * outputChannels * height * width);
+    const weightTensor = new ort.Tensor('float32', weightData, [1, outputChannels, height, width]);
+    
+    // Create a single VAE session that can handle the maximum tile size (with overlap)
+    const maxTileSizeLatent = tileSizeLatent + overlapLatent;
+    const vaeSession = await this.createVAESession(maxTileSizeLatent, maxTileSizeLatent);
     
     try {
       let processedTiles = 0;
       
       for (let tileY = 0; tileY < tilesY; tileY++) {
         for (let tileX = 0; tileX < tilesX; tileX++) {
-          // Calculate tile boundaries in latent space
-          const startX = tileX * tileSizeLatent;
-          const startY = tileY * tileSizeLatent;
+          // Calculate tile boundaries in latent space with overlap
+          const startX = tileX * strideLatent;
+          const startY = tileY * strideLatent;
           const endX = Math.min(startX + tileSizeLatent, latentWidth);
           const endY = Math.min(startY + tileSizeLatent, latentHeight);
           
@@ -237,7 +245,7 @@ export class TextToImageGenerator {
           const tileLatent = this.extractTile(latent, startX, startY, tileLatentWidth, tileLatentHeight);
           
           // If tile is smaller than max tile size, pad it to match VAE session dimensions
-          const paddedTileLatent = this.padTileIfNeeded(tileLatent, tileSizeLatent, tileSizeLatent);
+          const paddedTileLatent = this.padTileIfNeeded(tileLatent, maxTileSizeLatent, maxTileSizeLatent);
           
           // Decode the tile using the shared VAE session
           const tileResult = await vaeSession.run({
@@ -252,8 +260,30 @@ export class TextToImageGenerator {
           const outputEndX = endX * 8;
           const outputEndY = endY * 8;
           
-          // Copy tile data to output tensor (only the actual tile size, not padding)
-          this.copyTileToOutput(tileSample, outputTensor, outputStartX, outputStartY, outputEndX, outputEndY, tileLatentWidth * 8, tileLatentHeight * 8);
+          // Create feather mask for blending
+          const featherMask = this.createFeatherMask(
+            tileLatentWidth * 8, 
+            tileLatentHeight * 8, 
+            overlapLatent * 8,
+            tileX === 0, // isLeftEdge
+            tileY === 0, // isTopEdge
+            tileX === tilesX - 1, // isRightEdge
+            tileY === tilesY - 1  // isBottomEdge
+          );
+          
+          // Copy tile data to output tensor with blending
+          this.blendTileToOutput(
+            tileSample, 
+            outputTensor, 
+            weightTensor,
+            featherMask,
+            outputStartX, 
+            outputStartY, 
+            outputEndX, 
+            outputEndY, 
+            tileLatentWidth * 8, 
+            tileLatentHeight * 8
+          );
           
           processedTiles++;
           
@@ -265,6 +295,10 @@ export class TextToImageGenerator {
           console.log(`  🧩 Processed tile ${processedTiles}/${totalTiles} (${tileX},${tileY})`);
         }
       }
+      
+      // Normalize the output by dividing by the accumulated weights
+      this.normalizeBlendedOutput(outputTensor, weightTensor);
+      
     } finally {
       // Clean up the single VAE session after processing all tiles
       await vaeSession.release();
@@ -348,27 +382,68 @@ export class TextToImageGenerator {
   }
 
   /**
-   * Copy decoded tile data to the output tensor
+   * Create a feather mask for smooth blending at tile edges
    */
-  private copyTileToOutput(
+  private createFeatherMask(
+    width: number,
+    height: number,
+    overlapSize: number,
+    isLeftEdge: boolean,
+    isTopEdge: boolean,
+    isRightEdge: boolean,
+    isBottomEdge: boolean
+  ): Float32Array {
+    const mask = new Float32Array(width * height);
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let weight = 1.0;
+        
+        // Apply feathering on edges that have overlap
+        if (!isLeftEdge && x < overlapSize) {
+          weight *= x / overlapSize; // Fade in from left
+        }
+        if (!isRightEdge && x >= width - overlapSize) {
+          weight *= (width - 1 - x) / overlapSize; // Fade out to right
+        }
+        if (!isTopEdge && y < overlapSize) {
+          weight *= y / overlapSize; // Fade in from top
+        }
+        if (!isBottomEdge && y >= height - overlapSize) {
+          weight *= (height - 1 - y) / overlapSize; // Fade out to bottom
+        }
+        
+        mask[y * width + x] = weight;
+      }
+    }
+    
+    return mask;
+  }
+
+  /**
+   * Blend tile data into output tensor using feather weights
+   */
+  private blendTileToOutput(
     tileSample: ort.Tensor,
     outputTensor: ort.Tensor,
+    weightTensor: ort.Tensor,
+    featherMask: Float32Array,
     startX: number,
     startY: number,
     endX: number,
     endY: number,
-    actualTileWidth?: number,
-    actualTileHeight?: number
+    actualTileWidth: number,
+    actualTileHeight: number
   ): void {
     const [tileBatch, tileChannels, tileHeight, tileWidth] = tileSample.dims as [number, number, number, number];
     const [, outputChannels, outputHeight, outputWidth] = outputTensor.dims as [number, number, number, number];
     
     const tileData = tileSample.data as Float32Array;
     const outputData = outputTensor.data as Float32Array;
+    const weightData = weightTensor.data as Float32Array;
     
-    // Use actual tile dimensions if provided, otherwise calculate from coordinates
-    const copyWidth = actualTileWidth || (endX - startX);
-    const copyHeight = actualTileHeight || (endY - startY);
+    const copyWidth = Math.min(actualTileWidth, endX - startX);
+    const copyHeight = Math.min(actualTileHeight, endY - startY);
     
     for (let b = 0; b < tileBatch; b++) {
       for (let c = 0; c < tileChannels; c++) {
@@ -381,9 +456,32 @@ export class TextToImageGenerator {
                           c * (outputHeight * outputWidth) + 
                           (startY + y) * outputWidth + 
                           (startX + x);
-            outputData[dstIdx] = tileData[srcIdx];
+            
+            const maskIdx = y * actualTileWidth + x;
+            const weight = featherMask[maskIdx];
+            
+            // Accumulate weighted pixel values
+            outputData[dstIdx] += tileData[srcIdx] * weight;
+            weightData[dstIdx] += weight;
           }
         }
+      }
+    }
+  }
+
+  /**
+   * Normalize blended output by dividing by accumulated weights
+   */
+  private normalizeBlendedOutput(
+    outputTensor: ort.Tensor,
+    weightTensor: ort.Tensor
+  ): void {
+    const outputData = outputTensor.data as Float32Array;
+    const weightData = weightTensor.data as Float32Array;
+    
+    for (let i = 0; i < outputData.length; i++) {
+      if (weightData[i] > 0) {
+        outputData[i] /= weightData[i];
       }
     }
   }
@@ -518,7 +616,7 @@ export class TextToImageGenerator {
       seed, 
       scheduler = 'euler-karras',
       useTiledVAE = false,
-      tileSize = 512 
+      tileSize = 256 
     } = options;
 
     console.log(`Generating image with scheduler: ${scheduler}`);
@@ -607,9 +705,6 @@ export class TextToImageGenerator {
         // Create new sessions with correct dimensions
         this.models.unet = {
           sess: await this.createUNetSession(latentHeight, latentWidth)
-        };
-        this.models.vaeDecoder = {
-          sess: await this.createVAESession(latentHeight, latentWidth)
         };
 
         // Store current dimensions
@@ -736,7 +831,10 @@ export class TextToImageGenerator {
         sample = await this.decodeTiledVAE(latent, width, height, tileSize, onProgress);
       } else {
         // Regular VAE decoding
-        const vaeResult = await this.models.vaeDecoder!.sess.run({
+        // Load regular VAE
+        const vaeSession = await this.createVAESession(latent.dims[2], latent.dims[3]);
+
+        const vaeResult = await vaeSession.run({
           latent_sample: latent
         });
         sample = vaeResult.sample as ort.Tensor;

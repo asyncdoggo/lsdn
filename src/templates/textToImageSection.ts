@@ -42,8 +42,8 @@ export const textToImageSectionTemplate = `
           </label>
         </div>
         <div class="setting-group" id="tileSizeGroup" style="display: none;">
-          <label for="tileSizeSlider">Tile Size: <span id="tileSizeValue">512</span>px</label>
-          <input type="range" id="tileSizeSlider" min="256" max="1024" step="128" value="512" />
+          <label for="tileSizeSlider">Tile Size: <span id="tileSizeValue">256</span>px</label>
+          <input type="range" id="tileSizeSlider" min="64" max="512" step="64" value="256" />
         </div>
       </div>
       <div class="model-status">

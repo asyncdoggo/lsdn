@@ -127,27 +127,6 @@ guidanceSlider.addEventListener('input', () => {
   guidanceValue.textContent = guidanceSlider.value;
 });
 
-// Scheduler selector with recommended steps
-schedulerSelect.addEventListener('change', () => {
-  let recommendedSteps: number;
-  
-  switch (schedulerSelect.value) {
-    case 'ddpm':
-      recommendedSteps = 50; // DDPM typically needs more steps
-      break;
-    case 'lms':
-      recommendedSteps = 25; // LMS is more accurate, can use fewer steps than DDPM
-      break;
-    case 'euler-karras':
-    default:
-      recommendedSteps = 20; // Euler-Karras baseline
-      break;
-  }
-  
-  stepsSlider.value = recommendedSteps.toString();
-  stepsValue.textContent = recommendedSteps.toString();
-});
-
 // Tiled VAE checkbox
 tiledVAECheck.addEventListener('change', () => {
   tileSizeGroup.style.display = tiledVAECheck.checked ? 'block' : 'none';

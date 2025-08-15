@@ -195,7 +195,7 @@ export class ImageGenerator {
       seed,
       scheduler = 'euler-karras',
       useTiledVAE = false,
-      tileSize = 512
+      tileSize = 256
     } = options;
 
     const resolution = this.resolutions[resolutionKey];
