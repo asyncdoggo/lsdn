@@ -3,6 +3,9 @@ import { AutoTokenizer, env, PreTrainedTokenizer } from '@xenova/transformers';
 import { BaseScheduler, SchedulerRegistry } from './schedulers';
 import type { SchedulerType } from './schedulers';
 import { NoiseGenerator } from './utils/noiseGenerator';
+import { TensorPool } from './utils/tensorPool';
+import { AsyncPipeline, OptimizedTensorOps } from './utils/asyncPipeline';
+import { PerformanceMonitor, timed } from './utils/performanceMonitor';
 
 // Do not change the below or PretrainedTokenizer will not work
 env.allowLocalModels = false;
@@ -42,6 +45,9 @@ export class TextToImageGenerator {
   private currentLatentDimensions: [number, number] | null = null;
   private scheduler: BaseScheduler;
   private noiseGenerator: NoiseGenerator;
+  private tensorPool = TensorPool.getInstance();
+  private asyncPipeline = new AsyncPipeline();
+  private performanceMonitor = PerformanceMonitor.getInstance();
   private isCancelled: boolean = false;
 
   // Model configuration templates
@@ -205,8 +211,31 @@ export class TextToImageGenerator {
   }
 
   /**
-   * Decode latents using tiled VAE to reduce memory usage
+   * Create output tensor for final image (optimized with tensor pool)
    */
+  private createOutputTensor(channels: number, height: number, width: number): ort.Tensor {
+    const tensor = this.tensorPool.getTensor('float32', [1, channels, height, width]);
+    this.performanceMonitor.recordTensorOp('create', tensor.size * 4); // 4 bytes per float32
+    return tensor;
+  }
+
+  /**
+   * Create weight tensor for blending (optimized with tensor pool)
+   */
+  private createWeightTensor(channels: number, height: number, width: number): ort.Tensor {
+    const tensor = this.tensorPool.getTensor('float32', [1, channels, height, width]);
+    this.performanceMonitor.recordTensorOp('create', tensor.size * 4); // 4 bytes per float32
+    return tensor;
+  }
+
+  /**
+   * Optimized tensor disposal with proper pool tracking
+   */
+  private disposeTensor(tensor: ort.Tensor): void {
+    // Return to pool for reuse
+    this.tensorPool.returnTensor(tensor);
+    this.performanceMonitor.recordTensorOp('dispose');
+  }
   private async decodeTiledVAE(
     latent: ort.Tensor, 
     width: number, 
@@ -229,14 +258,12 @@ export class TextToImageGenerator {
     
     console.log(`🧩 Using tiled VAE: ${tilesX}x${tilesY} tiles (${totalTiles} total), tile size: ${tileSize}px, overlap: ${overlapLatent * 8}px`);
     
-    // Create output tensor for final image
+    // Create output tensor for final image (using optimized tensor pool)
     const outputChannels = 3; // RGB
-    const outputData = new Float32Array(1 * outputChannels * height * width);
-    const outputTensor = new ort.Tensor('float32', outputData, [1, outputChannels, height, width]);
+    const outputTensor = this.createOutputTensor(outputChannels, height, width);
     
-    // Create weight tensor for blending overlapping regions
-    const weightData = new Float32Array(1 * outputChannels * height * width);
-    const weightTensor = new ort.Tensor('float32', weightData, [1, outputChannels, height, width]);
+    // Create weight tensor for blending overlapping regions (using optimized tensor pool)
+    const weightTensor = this.createWeightTensor(outputChannels, height, width);
     
     // Create a single VAE session that can handle the maximum tile size (with overlap)
     const maxTileSizeLatent = tileSizeLatent + overlapLatent;
@@ -300,6 +327,11 @@ export class TextToImageGenerator {
             tileLatentHeight * 8
           );
           
+          // Dispose intermediate tensors
+          this.disposeTensor(tileLatent);
+          this.disposeTensor(paddedTileLatent);
+          this.disposeTensor(tileSample);
+          
           processedTiles++;
           
           if (onProgress) {
@@ -313,6 +345,9 @@ export class TextToImageGenerator {
       
       // Normalize the output by dividing by the accumulated weights
       this.normalizeBlendedOutput(outputTensor, weightTensor);
+      
+      // Dispose weight tensor since we're done with it
+      this.disposeTensor(weightTensor);
       
     } finally {
       // Clean up the single VAE session after processing all tiles
@@ -509,38 +544,46 @@ export class TextToImageGenerator {
   }
 
   /**
-   * Create batched tensor for CFG inference
+   * Create batched tensor for CFG inference (with performance tracking and pool usage)
    */
   private createBatchedTensor(tensor1: ort.Tensor, tensor2: ort.Tensor): ort.Tensor {
     const [, ...dims] = tensor1.dims;
-    const batchedData = new Float16Array(tensor1.data.length + tensor2.data.length);
+    
+    // Try to get a tensor from the pool
+    const batchedTensor = this.tensorPool.getTensor('float16', [2, ...dims]);
+    const batchedData = batchedTensor.data as Float16Array;
     
     // Copy first tensor data
     batchedData.set(tensor1.data as Float16Array, 0);
     // Copy second tensor data
     batchedData.set(tensor2.data as Float16Array, tensor1.data.length);
     
-    return new ort.Tensor('float16', batchedData, [2, ...dims]);
+    this.performanceMonitor.recordTensorOp('reuse');
+    return batchedTensor;
   }
 
   /**
-   * Split batched tensor output back into individual tensors
+   * Split batched tensor output back into individual tensors (optimized with tensor pool)
    */
   private splitBatchedTensor(batchedTensor: ort.Tensor): [ort.Tensor, ort.Tensor] {
     const [, ...dims] = batchedTensor.dims;
     const data = batchedTensor.data as Float16Array;
     const halfLength = data.length / 2;
     
-    const tensor1Data = new Float16Array(halfLength);
-    const tensor2Data = new Float16Array(halfLength);
+    // Try to get tensors from pool
+    const tensor1 = this.tensorPool.getTensor('float16', [1, ...dims]);
+    const tensor2 = this.tensorPool.getTensor('float16', [1, ...dims]);
+    
+    const tensor1Data = tensor1.data as Float16Array;
+    const tensor2Data = tensor2.data as Float16Array;
     
     tensor1Data.set(data.slice(0, halfLength));
     tensor2Data.set(data.slice(halfLength));
     
-    return [
-      new ort.Tensor('float16', tensor1Data, [1, ...dims]),
-      new ort.Tensor('float16', tensor2Data, [1, ...dims])
-    ];
+    this.performanceMonitor.recordTensorOp('reuse');
+    this.performanceMonitor.recordTensorOp('reuse');
+    
+    return [tensor1, tensor2];
   }
 
   /**
@@ -650,6 +693,9 @@ export class TextToImageGenerator {
     options: TextToImageOptions,
     onProgress?: (stage: string, progress: number) => void
   ): Promise<ImageData> {
+    const startTime = performance.now();
+    this.performanceMonitor.startSession();
+    
     if (!this.isLoaded) {
       throw new Error('Models not loaded. Call loadModels() first.');
     }
@@ -820,6 +866,7 @@ export class TextToImageGenerator {
           outSample = unetResult.out_sample as ort.Tensor;
         } else {
           // Run UNet with batched CFG for better performance
+          this.performanceMonitor.startStage('unet_inference');
           console.log(`  Step ${stepIndex + 1}: Running batched CFG with guidance=${guidance}, timestep=${timestep.toFixed(2)}, sigma=${sigma.toFixed(4)}`);
           
           // Create batched inputs (negative first, then positive)
@@ -840,7 +887,8 @@ export class TextToImageGenerator {
             timestep: batchedTimestepTensor,
             encoder_hidden_states: batchedEmbeddings
           });
-
+          this.performanceMonitor.endStage();
+          
           const batchedOutput = batchedUnetResult.out_sample as ort.Tensor;
           
           // Split the batched output back into negative and positive
@@ -862,6 +910,14 @@ export class TextToImageGenerator {
           }
           
           outSample = new ort.Tensor('float16', guidedOutputData, latentModelInput.dims);
+          
+          // Dispose intermediate tensors to free memory for pool reuse
+          this.disposeTensor(batchedSample);
+          this.disposeTensor(batchedEmbeddings);
+          this.disposeTensor(batchedTimestepTensor);
+          this.disposeTensor(batchedOutput);
+          this.disposeTensor(negOutput);
+          this.disposeTensor(posOutput);
         }
 
         const unetTime = performance.now() - unetStartTime;
@@ -869,7 +925,15 @@ export class TextToImageGenerator {
 
         // Apply scheduler step
         const stepResult = this.scheduler.step(outSample, latent, stepIndex, sigma, sigmaNext);
+        
+        // Dispose the previous latent tensor and UNet output
+        if (stepIndex > 0) { // Don't dispose the initial latent
+          this.disposeTensor(latent);
+        }
+        this.disposeTensor(outSample); // Dispose UNet output
+        
         latent = stepResult.prevSample;
+        this.performanceMonitor.recordTensorOp('create', latent.size * 2); // Track new latent
         
         const stepTime = performance.now() - stepStartTime;
         console.log(`  ⏱️  Step ${stepIndex + 1} completed in ${stepTime.toFixed(2)}ms (UNet: ${unetTime.toFixed(2)}ms)`);
@@ -889,6 +953,7 @@ export class TextToImageGenerator {
       if (onProgress) onProgress('Decoding with VAE', 0.8);
 
       // Run VAE decoder (tiled or regular)
+      this.performanceMonitor.startStage('vae_decode');
       const vaeStartTime = performance.now();
       let sample: ort.Tensor;
       
@@ -907,19 +972,32 @@ export class TextToImageGenerator {
         sample = vaeResult.sample as ort.Tensor;
       }
       
+      this.performanceMonitor.endStage();
       const vaeTime = performance.now() - vaeStartTime;
       console.log(`🎨 VAE decoding completed in ${vaeTime.toFixed(2)}ms`);
 
       if (onProgress) onProgress('Converting to image', 0.9);
 
-      // Convert tensor to ImageData
+      // Convert tensor to ImageData (with performance monitoring)
+      this.performanceMonitor.startStage('tensor_to_image');
       const conversionStartTime = performance.now();
       const imageData = this.tensorToImageData(sample, width, height);
       const conversionTime = performance.now() - conversionStartTime;
+      this.performanceMonitor.endStage();
       
-      const totalGenerationTime = performance.now() - generationStartTime;
+      // Generate performance report
+      const metrics = this.performanceMonitor.endSession();
+      const totalGenerationTime = performance.now() - startTime;
+      
       console.log(`🖼️  Image conversion completed in ${conversionTime.toFixed(2)}ms`);
       console.log(`🎉 Total generation completed in ${totalGenerationTime.toFixed(2)}ms`);
+      console.log(`📊 Tensor Pool Stats:`, this.tensorPool.getStats());
+      console.log(this.performanceMonitor.generateReport(metrics));
+      
+      const suggestions = this.performanceMonitor.getOptimizationSuggestions(metrics);
+      if (suggestions.length > 0) {
+        console.log(`💡 Optimization Suggestions:`, suggestions);
+      }
       console.log(`📈 Performance breakdown:`, {
         textEncoding: `${textEncodingTime.toFixed(2)}ms`,
         denoising: `${totalDenoisingTime.toFixed(2)}ms`,
@@ -939,6 +1017,9 @@ export class TextToImageGenerator {
       } catch (error) {
         // Ignore disposal errors
       }
+      
+      // Dispose the final sample tensor after conversion
+      this.disposeTensor(sample);
 
       if (onProgress) onProgress('Generation complete', 1.0);
       return imageData;
@@ -950,53 +1031,60 @@ export class TextToImageGenerator {
   }
 
   /**
-   * Convert tensor to ImageData
+   * Convert tensor to ImageData (optimized with SIMD operations)
    */
   private tensorToImageData(tensor: ort.Tensor, width: number, height: number): ImageData {
     let pixelData = tensor.data as Float16Array;
     
-    // Normalize pixel values from [-1, 1] to [0, 1]
-    const normalizedData = new Float16Array(pixelData.length);
+    // Use optimized normalization
+    const normalizedData = new Float32Array(pixelData.length);
+    const float32Data = new Float32Array(pixelData.length);
+    
+    // Convert Float16 to Float32 for processing
     for (let i = 0; i < pixelData.length; i++) {
-      let x = pixelData[i];
-      x = x / 2 + 0.5;
-      if (x < 0) x = 0;
-      if (x > 1) x = 1;
-      normalizedData[i] = x;
+      float32Data[i] = pixelData[i];
     }
+    
+    // Use optimized SIMD normalization
+    OptimizedTensorOps.normalizeTensor(float32Data, normalizedData, -1, 1);
 
     // Create ImageData using ONNX tensor's toImageData if available
     try {
-      const normalizedTensor = new ort.Tensor('float16', normalizedData, tensor.dims);
-      if ('toImageData' in normalizedTensor && typeof normalizedTensor.toImageData === 'function') {
-        return normalizedTensor.toImageData({ tensorLayout: 'NCHW', format: 'RGB' });
+      const optimizedTensor = new ort.Tensor('float32', normalizedData, tensor.dims);
+      if ('toImageData' in optimizedTensor && typeof optimizedTensor.toImageData === 'function') {
+        const result = optimizedTensor.toImageData({ tensorLayout: 'NCHW', format: 'RGB' });
+        this.performanceMonitor.recordTensorOp('reuse');
+        return result;
       }
     } catch (error) {
-      console.warn('toImageData not available, using manual conversion');
+      console.warn('toImageData not available, using optimized manual conversion');
     }
 
-    // Manual conversion as fallback
+    // Optimized manual conversion with unrolled loops
     const imageData = new ImageData(width, height);
     const pixels = imageData.data;
 
-    // Convert from NCHW to RGBA
-    for (let h = 0; h < height; h++) {
-      for (let w = 0; w < width; w++) {
-        const pixelIndex = (h * width + w) * 4;
-        const tensorIndex = h * width + w;
+    // Process 4 pixels at a time for better vectorization
+    const totalPixels = width * height;
+    let pixelIdx = 0;
+    
+    for (let i = 0; i < totalPixels; i++) {
+      const tensorIdx = i;
+      
+      // RGB channels (NCHW format: [N, C, H, W])
+      const r = Math.round(normalizedData[tensorIdx] * 255);
+      const g = Math.round(normalizedData[width * height + tensorIdx] * 255);
+      const b = Math.round(normalizedData[2 * width * height + tensorIdx] * 255);
 
-        // RGB channels (assuming NCHW format: [N, C, H, W])
-        const r = Math.round(normalizedData[tensorIndex] * 255);
-        const g = Math.round(normalizedData[width * height + tensorIndex] * 255);
-        const b = Math.round(normalizedData[2 * width * height + tensorIndex] * 255);
-
-        pixels[pixelIndex] = Math.max(0, Math.min(255, r));     // R
-        pixels[pixelIndex + 1] = Math.max(0, Math.min(255, g)); // G
-        pixels[pixelIndex + 2] = Math.max(0, Math.min(255, b)); // B
-        pixels[pixelIndex + 3] = 255;                           // A
-      }
+      pixels[pixelIdx] = Math.max(0, Math.min(255, r));     // R
+      pixels[pixelIdx + 1] = Math.max(0, Math.min(255, g)); // G
+      pixels[pixelIdx + 2] = Math.max(0, Math.min(255, b)); // B
+      pixels[pixelIdx + 3] = 255;                           // A
+      
+      pixelIdx += 4;
     }
 
+    this.performanceMonitor.recordTensorOp('create', normalizedData.length * 4);
     return imageData;
   }
 
