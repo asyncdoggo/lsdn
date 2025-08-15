@@ -6,47 +6,26 @@ export class VAEProcessor {
   private readonly vaeScalingFactor = 0.18215;
 
   /**
-   * Convert tensor to ImageData using built-in ONNX method
+   * Convert tensor to ImageData using built-in ONNX method with normalization
    */
-  tensorToImageData(tensor: ort.Tensor, width: number, height: number): ImageData {
-    // Check if the built-in method is available
-    if ('toImageData' in tensor && typeof tensor.toImageData === 'function') {
-      try {
-        // Use the built-in toImageData method - much more efficient!
-        const result = (tensor as any).toImageData({ 
-          tensorLayout: 'NCHW', 
-          format: 'RGB'
-        });
-        this.performanceMonitor.recordTensorOp('reuse');
-        console.log('🎨 Used built-in tensor.toImageData() method');
-        return result;
-      } catch (error) {
-        console.warn('Built-in toImageData failed:', error);
-      }
+  tensorToImageData(tensor: ort.Tensor): ImageData {
+    let pixelData = tensor.data as Float16Array;
+    
+    // Normalize pixel values from [-1, 1] to [0, 1]
+    const normalizedData = new Float16Array(pixelData.length);
+    for (let i = 0; i < pixelData.length; i++) {
+      let x = pixelData[i];
+      x = x / 2 + 0.5;
+      if (x < 0) x = 0;
+      if (x > 1) x = 1;
+      normalizedData[i] = x;
     }
-    
-    console.log('📝 Using fallback tensor conversion');
-    
-    // Simple fallback without complex optimizations
-    const imageData = new ImageData(width, height);
-    const pixels = imageData.data;
-    const tensorData = tensor.data as Float32Array;
-    
-    for (let i = 0; i < width * height; i++) {
-      // NCHW format: [N, C, H, W]
-      const r = Math.round((tensorData[i] + 1) * 127.5); // Denormalize from [-1,1] to [0,255]
-      const g = Math.round((tensorData[width * height + i] + 1) * 127.5);
-      const b = Math.round((tensorData[2 * width * height + i] + 1) * 127.5);
-      
-      const pixelIdx = i * 4;
-      pixels[pixelIdx] = Math.max(0, Math.min(255, r));     // R
-      pixels[pixelIdx + 1] = Math.max(0, Math.min(255, g)); // G
-      pixels[pixelIdx + 2] = Math.max(0, Math.min(255, b)); // B
-      pixels[pixelIdx + 3] = 255;                           // A
-    }
-    
-    this.performanceMonitor.recordTensorOp('create');
-    return imageData;
+
+    // Use ONNX tensor's built-in toImageData method with normalized data
+    const normalizedTensor = new ort.Tensor('float16', normalizedData, tensor.dims);
+    this.performanceMonitor.recordTensorOp('reuse');
+    console.log('🎨 Used built-in tensor.toImageData() method with normalized data');
+    return (normalizedTensor as any).toImageData({ tensorLayout: 'NCHW', format: 'RGB' });
   }
 
   /**

@@ -102,7 +102,7 @@ export class TextToImageGenerator {
   ): Promise<ImageData> {
     const startTime = performance.now();
     this.performanceMonitor.startSession();
-    
+
     if (!this.modelManager.modelsLoaded) {
       throw new Error('Models not loaded. Call loadModels() first.');
     }
@@ -110,16 +110,16 @@ export class TextToImageGenerator {
     // Reset cancellation flag at the start
     this.resetCancellation();
 
-    let { 
-      prompt, 
-      width = 512, 
-      height = 512, 
-      steps = 4, 
-      guidance = 7.5, 
-      seed, 
+    let {
+      prompt,
+      width = 512,
+      height = 512,
+      steps = 4,
+      guidance = 7.5,
+      seed,
       scheduler = 'euler-karras',
       useTiledVAE = false,
-      tileSize = 256 
+      tileSize = 256
     } = options;
 
     console.log(`Generating image with scheduler: ${scheduler}`);
@@ -151,7 +151,7 @@ export class TextToImageGenerator {
     try {
       // Get negative prompt early to avoid variable issues
       const negativePromptText = options.negativePrompt || "";
-      
+
       console.log(`🚀 Starting image generation:`, {
         resolution: `${width}x${height}`,
         steps,
@@ -172,7 +172,7 @@ export class TextToImageGenerator {
 
       // Tokenize positive prompt
       const { input_ids: posInputIds } = await tokenizer(prompt, { padding: true, max_length: 77, truncation: true, return_tensor: false });
-      
+
       // Tokenize negative prompt (empty string for unconditional)
       const { input_ids: negInputIds } = await tokenizer(negativePromptText, { padding: true, max_length: 77, truncation: true, return_tensor: false });
 
@@ -193,7 +193,7 @@ export class TextToImageGenerator {
 
       const posEmbeddings = posTextEncoderResult.last_hidden_state as ort.Tensor;
       const negEmbeddings = negTextEncoderResult.last_hidden_state as ort.Tensor;
-      
+
       const textEncodingTime = performance.now() - textEncodingStart;
       console.log(`📝 Text encoding completed in ${textEncodingTime.toFixed(2)}ms`);
 
@@ -217,16 +217,16 @@ export class TextToImageGenerator {
 
       // Generate timesteps and sigmas using the scheduler
       const timestepData = this.scheduler.generateTimesteps(steps);
-      
+
       console.log(`🔄 Starting denoising with ${steps} steps using ${this.scheduler.name} scheduler`);
       console.log(`📊 Latent dimensions: ${latentHeight}x${latentWidth} (${latentShape.join('x')})`);
-      
+
       // Scale initial latents using scheduler
       latent = this.scheduler.scaleInitialNoise(latent, timestepData);
-      
+
       const denoisingStartTime = performance.now();
       let totalUNetTime = 0;
-      
+
       // Denoising loop
       for (let stepIndex = 0; stepIndex < steps; stepIndex++) {
         // Check for cancellation
@@ -241,7 +241,7 @@ export class TextToImageGenerator {
         const sigma = timestepData.sigmas[stepIndex];
         const sigmaNext = timestepData.sigmas[stepIndex + 1];
         const progressBase = 0.3 + (stepIndex / steps) * 0.4; // 0.3 to 0.7
-        
+
         if (onProgress) onProgress(`Denoising step ${stepIndex + 1}/${steps}`, progressBase);
 
         // Scale latents for model input using scheduler
@@ -260,7 +260,7 @@ export class TextToImageGenerator {
         if (guidance <= 1.0) {
           // No guidance - just run positive conditioning
           console.log(`  Step ${stepIndex + 1}: Running single UNet pass (no CFG), timestep=${timestep.toFixed(2)}, sigma=${sigma.toFixed(4)}`);
-          
+
           if (!models.unet) {
             throw new Error('UNet not loaded');
           }
@@ -275,11 +275,11 @@ export class TextToImageGenerator {
           // Run UNet with batched CFG for better performance
           this.performanceMonitor.startStage('unet_inference');
           console.log(`  Step ${stepIndex + 1}: Running batched CFG with guidance=${guidance}, timestep=${timestep.toFixed(2)}, sigma=${sigma.toFixed(4)}`);
-          
+
           // Create batched inputs (negative first, then positive)
           const batchedSample = this.tensorOps.createBatchedTensor(latentModelInput, latentModelInput);
           const batchedEmbeddings = this.tensorOps.createBatchedTensor(negEmbeddings, posEmbeddings);
-          
+
           // Create batched timestep tensor (cache and reuse the array)
           if (!this.tensorCache.batchedTimestepData) {
             this.tensorCache.batchedTimestepData = new Float16Array(2);
@@ -287,7 +287,7 @@ export class TextToImageGenerator {
           this.tensorCache.batchedTimestepData[0] = this.tensorCache.timestepData![0];
           this.tensorCache.batchedTimestepData[1] = this.tensorCache.timestepData![0];
           const batchedTimestepTensor = new ort.Tensor('float16', this.tensorCache.batchedTimestepData, [2]);
-          
+
           if (!models.unet) {
             throw new Error('UNet not loaded');
           }
@@ -299,29 +299,29 @@ export class TextToImageGenerator {
             encoder_hidden_states: batchedEmbeddings
           });
           this.performanceMonitor.endStage();
-          
+
           const batchedOutput = batchedUnetResult.out_sample as ort.Tensor;
-          
+
           // Split the batched output back into negative and positive
           const [negOutput, posOutput] = this.tensorOps.splitBatchedTensor(batchedOutput);
-          
+
           // Apply classifier-free guidance (cache and reuse the output array)
           const negData = negOutput.data as Float16Array;
           const posData = posOutput.data as Float16Array;
-          
+
           if (!this.tensorCache.guidedOutputData || this.tensorCache.guidedOutputData.length !== negData.length) {
             this.tensorCache.guidedOutputData = new Float16Array(negData.length);
           }
           const guidedOutputData = this.tensorCache.guidedOutputData;
-          
+
           // Optimized CFG calculation
           for (let i = 0; i < negData.length; i++) {
             // CFG formula: negative + guidance * (positive - negative)
             guidedOutputData[i] = negData[i] + guidance * (posData[i] - negData[i]);
           }
-          
+
           outSample = new ort.Tensor('float16', guidedOutputData, latentModelInput.dims);
-          
+
           // Dispose intermediate tensors to free memory for pool reuse
           this.tensorOps.disposeTensor(batchedSample);
           this.tensorOps.disposeTensor(batchedEmbeddings);
@@ -336,18 +336,18 @@ export class TextToImageGenerator {
 
         // Apply scheduler step
         const stepResult = this.scheduler.step(outSample, latent, stepIndex, sigma, sigmaNext);
-        
+
         // Dispose the previous latent tensor and UNet output
         if (stepIndex > 0) { // Don't dispose the initial latent
           this.tensorOps.disposeTensor(latent);
         }
         this.tensorOps.disposeTensor(outSample); // Dispose UNet output
-        
+
         latent = stepResult.prevSample;
         this.performanceMonitor.recordTensorOp('create', latent.size * 2); // Track new latent
-        
+
         // Generate preview if callback is provided
-        if (onPreview && stepIndex % 2 === 0) { // Generate preview every 2 steps to reduce overhead
+        if (onPreview) {
           try {
             const previewImageData = LatentPreview.latentToRGBAdvanced(latent, 64, 64);
             onPreview(previewImageData);
@@ -355,11 +355,11 @@ export class TextToImageGenerator {
             console.warn('Preview generation failed:', error);
           }
         }
-        
+
         const stepTime = performance.now() - stepStartTime;
         console.log(`  ⏱️  Step ${stepIndex + 1} completed in ${stepTime.toFixed(2)}ms (UNet: ${unetTime.toFixed(2)}ms)`);
       }
-      
+
       const totalDenoisingTime = performance.now() - denoisingStartTime;
       console.log(`✅ Denoising completed in ${totalDenoisingTime.toFixed(2)}ms (avg: ${(totalDenoisingTime / steps).toFixed(2)}ms/step, UNet total: ${totalUNetTime.toFixed(2)}ms)`);
 
@@ -373,7 +373,7 @@ export class TextToImageGenerator {
       this.performanceMonitor.startStage('vae_decode');
       const vaeStartTime = performance.now();
       let sample: ort.Tensor;
-      
+
       if (useTiledVAE) {
         // Use tiled VAE decoding to reduce memory usage
         console.log(`🧩 Using tiled VAE decoding with tile size: ${tileSize}px`);
@@ -387,7 +387,7 @@ export class TextToImageGenerator {
         });
         sample = vaeResult.sample as ort.Tensor;
       }
-      
+
       this.performanceMonitor.endStage();
       const vaeTime = performance.now() - vaeStartTime;
       console.log(`🎨 VAE decoding completed in ${vaeTime.toFixed(2)}ms`);
@@ -397,18 +397,18 @@ export class TextToImageGenerator {
       // Convert tensor to ImageData (with performance monitoring)
       this.performanceMonitor.startStage('tensor_to_image');
       const conversionStartTime = performance.now();
-      const imageData = this.vaeProcessor.tensorToImageData(sample, width, height);
+      const imageData = this.vaeProcessor.tensorToImageData(sample);
       const conversionTime = performance.now() - conversionStartTime;
       this.performanceMonitor.endStage();
-      
+
       // Generate performance report
       const metrics = this.performanceMonitor.endSession();
       const totalGenerationTime = performance.now() - startTime;
-      
+
       console.log(`🖼️  Image conversion completed in ${conversionTime.toFixed(2)}ms`);
       console.log(`🎉 Total generation completed in ${totalGenerationTime.toFixed(2)}ms`);
       console.log(this.performanceMonitor.generateReport(metrics));
-      
+
 
       // Clean up GPU resources
       try {
@@ -421,7 +421,7 @@ export class TextToImageGenerator {
       } catch (error) {
         // Ignore disposal errors
       }
-      
+
       // Dispose the final sample tensor after conversion
       this.tensorOps.disposeTensor(sample);
 
