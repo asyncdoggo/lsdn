@@ -3,8 +3,9 @@ import { EulerKarrasScheduler } from './eulerKarrasScheduler';
 import { DDPMScheduler } from './ddpmScheduler';
 import { LMSScheduler } from './lmsScheduler';
 import { HeunScheduler } from './heunScheduler';
+import { DPMpp2MSdeScheduler } from './dpmpp2mSdeScheduler';
 
-export type SchedulerType = 'euler-karras' | 'ddpm' | 'lms' | 'heun';
+export type SchedulerType = 'euler-karras' | 'ddpm' | 'lms' | 'heun' | 'dpmpp-2m-sde';
 
 export class SchedulerRegistry {
   private static schedulers: Map<SchedulerType, () => BaseScheduler> = new Map([
@@ -12,6 +13,7 @@ export class SchedulerRegistry {
     ['ddpm', () => new DDPMScheduler() as BaseScheduler],
     ['lms', () => new LMSScheduler() as BaseScheduler],
     ['heun', () => new HeunScheduler() as BaseScheduler],
+    ['dpmpp-2m-sde', () => new DPMpp2MSdeScheduler() as BaseScheduler],
     // Add more schedulers here as they're implemented
   ]);
 

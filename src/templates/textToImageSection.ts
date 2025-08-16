@@ -30,6 +30,7 @@ export const textToImageSectionTemplate = `
             <option value="ddpm">DDPM</option>
             <option value="lms">LMS (Linear Multi-Step)</option>
             <option value="heun">Heun (2nd Order)</option>
+            <option value="dpmpp-2m-sde">DPM++ 2M SDE</option>
           </select>
         </div>
         <div class="setting-group">
