@@ -1,5 +1,5 @@
 export { BaseScheduler } from './baseScheduler';
-export { EulerKarrasScheduler } from './eulerKarrasScheduler';
+export { EulerScheduler } from './eulerScheduler';
 export { DDPMScheduler } from './ddpmScheduler';
 export { LMSScheduler } from './lmsScheduler';
 export { HeunScheduler } from './heunScheduler';

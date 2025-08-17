@@ -44,7 +44,7 @@ export class TiledVAEProcessor {
     
     // Create a single VAE session that can handle the maximum tile size (with overlap)
     const maxTileSizeLatent = tileSizeLatent + overlapLatent;
-    const vaeSession = await this.modelManager.createVAESession(maxTileSizeLatent, maxTileSizeLatent);
+    const vaeSession = await this.modelManager.createVAESession(maxTileSizeLatent, maxTileSizeLatent, onProgress);
     
     try {
       let processedTiles = 0;

@@ -6,6 +6,7 @@ env.allowLocalModels = false;
 env.useBrowserCache = false;
 
 const BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
+// const BASE_URL = "stable_diffusion_2";
 
 export const MODEL_URLS = {
   "unet": `${BASE_URL}/unet/model.onnx`,
@@ -120,12 +121,12 @@ export class ModelManager {
   /**
    * Create UNet session with specific dimensions
    */
-  async createUNetSession(latentHeight: number, latentWidth: number): Promise<ort.InferenceSession> {
-    const unetBytes = await this.fetchAndCache(this.modelConfig.unet.url);
+  async createUNetSession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
+    const unetBytes = await this.fetchAndCache(this.modelConfig.unet.url, onProgress, 'UNet Model');
     let weightsBytes = new ArrayBuffer(0);
     
     if (this.modelConfig.unet.weightsUrl) {
-      weightsBytes = await this.fetchAndCache(this.modelConfig.unet.weightsUrl);
+      weightsBytes = await this.fetchAndCache(this.modelConfig.unet.weightsUrl, onProgress, 'UNet Weights');
     }
 
     const unetOptions = {
@@ -149,8 +150,8 @@ export class ModelManager {
   /**
    * Create VAE decoder session with specific dimensions
    */
-  async createVAESession(latentHeight: number, latentWidth: number): Promise<ort.InferenceSession> {
-    const vaeBytes = await this.fetchAndCache(this.modelConfig.vaeDecoder.url);
+  async createVAESession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
+    const vaeBytes = await this.fetchAndCache(this.modelConfig.vaeDecoder.url, onProgress, 'VAE Decoder');
     
     const vaeOptions = {
       ...this.modelConfig.vaeDecoder.baseOpt,
@@ -168,11 +169,17 @@ export class ModelManager {
   /**
    * Fetch and cache model files
    */
-  private async fetchAndCache(url: string): Promise<ArrayBuffer> {
+  private async fetchAndCache(url: string, onProgress?: (stage: string, progress: number) => void, modelName?: string): Promise<ArrayBuffer> {
     try {
       const cache = await caches.open("onnx");
       let cachedResponse = await cache.match(url);
       if (cachedResponse === undefined) {
+        // Model needs to be downloaded from network
+        if (onProgress && modelName) {
+          onProgress(`Downloading ${modelName} from network...`, 0.1);
+        }
+        console.log(`${url} (downloading from network)`);
+        
         await cache.add(url);
         cachedResponse = await cache.match(url);
         console.log(`${url} (network)`);
@@ -184,6 +191,10 @@ export class ModelManager {
       }
       throw new Error('Failed to cache response');
     } catch (error) {
+      // Fallback to direct fetch
+      if (onProgress && modelName) {
+        onProgress(`Downloading ${modelName} (fallback)...`, 0.1);
+      }
       console.log(`${url} (network fallback)`);
       return await fetch(url).then(response => response.arrayBuffer());
     }
@@ -207,7 +218,7 @@ export class ModelManager {
       if (onProgress) onProgress('Loading Text Encoder', 0.2);
       
       // Load text encoder (this one doesn't depend on resolution)
-      const textEncoderBytes = await this.fetchAndCache(this.modelConfig.textEncoder.url);
+      const textEncoderBytes = await this.fetchAndCache(this.modelConfig.textEncoder.url, onProgress, 'Text Encoder');
       this.models.textEncoder = {
         sess: await ort.InferenceSession.create(textEncoderBytes, this.modelConfig.textEncoder.opt)
       };
@@ -223,7 +234,7 @@ export class ModelManager {
       const [latentHeight, latentWidth] = this.getLatentDimensions(512, 512);
       
       this.models.unet = {
-        sess: await this.createUNetSession(latentHeight, latentWidth)
+        sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
       };
 
       // Store current dimensions as 512px
@@ -257,7 +268,7 @@ export class ModelManager {
   /**
    * Update models for new resolution
    */
-  async updateModelsForResolution(latentHeight: number, latentWidth: number): Promise<void> {
+  async updateModelsForResolution(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<void> {
     console.log(`🔄 Updating models for resolution: [${latentHeight}, ${latentWidth}]`);
     
     // Dispose existing UNet session if it exists
@@ -272,7 +283,7 @@ export class ModelManager {
     // Create new UNet session with correct dimensions
     console.log('🏗️ Creating new UNet session');
     this.models.unet = {
-      sess: await this.createUNetSession(latentHeight, latentWidth)
+      sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
     };
 
     // Store current dimensions

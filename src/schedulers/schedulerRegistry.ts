@@ -1,19 +1,36 @@
 import { BaseScheduler } from './baseScheduler';
-import { EulerKarrasScheduler } from './eulerKarrasScheduler';
+import { EulerScheduler } from './eulerScheduler';
 import { DDPMScheduler } from './ddpmScheduler';
 import { LMSScheduler } from './lmsScheduler';
 import { HeunScheduler } from './heunScheduler';
 import { DPMpp2MSdeScheduler } from './dpmpp2mSdeScheduler';
 
-export type SchedulerType = 'euler-karras' | 'ddpm' | 'lms' | 'heun' | 'dpmpp-2m-sde';
+export type SchedulerType = 
+  | 'euler-karras' 
+  | 'euler-linear'
+  | 'euler-exponential'
+  | 'ddpm' 
+  | 'lms' 
+  | 'heun' 
+  | 'dpmpp-2m-sde-karras'
+  | 'dpmpp-2m-sde-linear'
+  | 'dpmpp-2m-sde-exponential';
 
 export class SchedulerRegistry {
   private static schedulers: Map<SchedulerType, () => BaseScheduler> = new Map([
-    ['euler-karras', () => new EulerKarrasScheduler() as BaseScheduler],
+    // New Euler schedulers with different noise schedules
+    ['euler-linear', () => new EulerScheduler('linear') as BaseScheduler],
+    ['euler-exponential', () => new EulerScheduler('exponential') as BaseScheduler],
+    ['euler-karras', () => new EulerScheduler('karras') as BaseScheduler],
+    // DPM++ 2M SDE with different noise schedules
+    ['dpmpp-2m-sde-karras', () => new DPMpp2MSdeScheduler('karras') as BaseScheduler],
+    ['dpmpp-2m-sde-linear', () => new DPMpp2MSdeScheduler('linear') as BaseScheduler],
+    ['dpmpp-2m-sde-exponential', () => new DPMpp2MSdeScheduler('exponential') as BaseScheduler],
+    
+    // Other schedulers
     ['ddpm', () => new DDPMScheduler() as BaseScheduler],
     ['lms', () => new LMSScheduler() as BaseScheduler],
     ['heun', () => new HeunScheduler() as BaseScheduler],
-    ['dpmpp-2m-sde', () => new DPMpp2MSdeScheduler() as BaseScheduler],
     // Add more schedulers here as they're implemented
   ]);
 

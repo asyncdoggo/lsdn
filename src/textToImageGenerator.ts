@@ -210,7 +210,7 @@ export class TextToImageGenerator {
 
       if (needsNewModels) {
         if (onProgress) onProgress('Loading models for resolution', 0.25);
-        await this.modelManager.updateModelsForResolution(latentHeight, latentWidth);
+        await this.modelManager.updateModelsForResolution(latentHeight, latentWidth, onProgress);
       }
 
       if (onProgress) onProgress('Running UNet denoising', 0.3);
@@ -380,7 +380,7 @@ export class TextToImageGenerator {
         sample = await this.tiledVaeProcessor.decodeTiledVAE(latent, width, height, tileSize, onProgress);
       } else {
         // Regular VAE decoding
-        const vaeSession = await this.modelManager.createVAESession(latent.dims[2], latent.dims[3]);
+        const vaeSession = await this.modelManager.createVAESession(latent.dims[2], latent.dims[3], onProgress);
 
         const vaeResult = await vaeSession.run({
           latent_sample: latent

@@ -1,11 +1,11 @@
 import * as ort from 'onnxruntime-web/webgpu';
 import { BaseScheduler } from './baseScheduler';
 import type { SchedulerTimesteps, SchedulerStepResult } from './baseScheduler';
+import { BaseNoiseSchedule, KarrasNoiseSchedule, LinearNoiseSchedule, ExponentialNoiseSchedule } from '../noiseSchedules';
+import type { NoiseScheduleType } from '../noiseSchedules';
 
 export class DPMpp2MSdeScheduler extends BaseScheduler {
-  private sigmaMin: number = 0.0292;
-  private sigmaMax: number = 14.6146;
-  private rho: number = 7.0;
+  private noiseSchedule: BaseNoiseSchedule;
   private timesteps: number[] = [];
   private sigmas: number[] = [];
   private eta: number = 1.0; // SDE noise scale
@@ -13,32 +13,38 @@ export class DPMpp2MSdeScheduler extends BaseScheduler {
   // For second-order methods, we need to store the previous model output
   private prevModelOutput: ort.Tensor | null = null;
 
+  constructor(noiseScheduleType: NoiseScheduleType = 'karras') {
+    super();
+    this.noiseSchedule = this.createNoiseSchedule(noiseScheduleType);
+  }
+
   get name(): string {
-    return 'DPM++ 2M SDE';
+    return `DPM++ 2M SDE (${this.noiseSchedule.name})`;
   }
 
   /**
-   * Generate timesteps and sigmas for DPM++ 2M SDE scheduler
+   * Create noise schedule based on type
+   */
+  private createNoiseSchedule(type: NoiseScheduleType): BaseNoiseSchedule {
+    switch (type) {
+      case 'karras':
+        return new KarrasNoiseSchedule();
+      case 'linear':
+        return new LinearNoiseSchedule();
+      case 'exponential':
+        return new ExponentialNoiseSchedule();
+      default:
+        return new KarrasNoiseSchedule();
+    }
+  }
+
+  /**
+   * Generate timesteps and sigmas for DPM++ 2M SDE scheduler using the selected noise schedule
    */
   generateTimesteps(steps: number): SchedulerTimesteps {
-    this.timesteps = [];
-    this.sigmas = [];
-    
-    // Generate Karras-style sigma schedule (starts high, goes to low)
-    for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1);
-      const minInvRho = this.sigmaMin ** (1 / this.rho);
-      const maxInvRho = this.sigmaMax ** (1 / this.rho);
-      const sigma = (maxInvRho + t * (minInvRho - maxInvRho)) ** this.rho;
-      this.sigmas.push(sigma);
-      
-      // Convert sigma to timestep (reverse mapping from high to low)
-      const timestep = this.numTrainTimesteps - 1 - Math.floor((this.numTrainTimesteps - 1) * t);
-      this.timesteps.push(timestep);
-    }
-    
-    // Add final sigma of 0
-    this.sigmas.push(0);
+    const schedule = this.noiseSchedule.generateSchedule(steps);
+    this.timesteps = schedule.timesteps;
+    this.sigmas = schedule.sigmas;
     
     return { timesteps: this.timesteps, sigmas: this.sigmas };
   }
@@ -200,10 +206,30 @@ export class DPMpp2MSdeScheduler extends BaseScheduler {
     rho?: number,
     eta?: number
   ): void {
-    if (sigmaMin !== undefined) this.sigmaMin = sigmaMin;
-    if (sigmaMax !== undefined) this.sigmaMax = sigmaMax;
-    if (rho !== undefined) this.rho = rho;
+    // Update noise schedule parameters
+    this.noiseSchedule.setParameters(sigmaMin, sigmaMax);
+    
+    // Update Karras-specific parameters if using Karras schedule
+    if (this.noiseSchedule instanceof KarrasNoiseSchedule && rho !== undefined) {
+      (this.noiseSchedule as KarrasNoiseSchedule).setKarrasParameters(rho);
+    }
+    
+    // Update SDE parameter
     if (eta !== undefined) this.eta = eta;
+  }
+
+  /**
+   * Set noise schedule type
+   */
+  setNoiseSchedule(type: NoiseScheduleType): void {
+    this.noiseSchedule = this.createNoiseSchedule(type);
+  }
+
+  /**
+   * Get current noise schedule type
+   */
+  getNoiseScheduleName(): string {
+    return this.noiseSchedule.name;
   }
 
   /**

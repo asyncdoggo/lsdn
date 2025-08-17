@@ -26,11 +26,21 @@ export const textToImageSectionTemplate = `
         <div class="setting-group">
           <label for="schedulerSelect">Scheduler:</label>
           <select id="schedulerSelect">
-            <option value="euler-karras">Euler Karras</option>
-            <option value="ddpm">DDPM</option>
-            <option value="lms">LMS (Linear Multi-Step)</option>
-            <option value="heun">Heun (2nd Order)</option>
-            <option value="dpmpp-2m-sde">DPM++ 2M SDE</option>
+            <optgroup label="Euler Method">
+              <option value="euler-karras">Euler (Karras)</option>
+              <option value="euler-linear">Euler (Linear)</option>
+              <option value="euler-exponential">Euler (Exponential)</option>
+            </optgroup>
+            <optgroup label="DPM++ 2M SDE">
+              <option value="dpmpp-2m-sde-karras">DPM++ 2M SDE (Karras)</option>
+              <option value="dpmpp-2m-sde-linear">DPM++ 2M SDE (Linear)</option>
+              <option value="dpmpp-2m-sde-exponential">DPM++ 2M SDE (Exponential)</option>
+            </optgroup>
+            <optgroup label="Other Methods">
+              <option value="ddpm">DDPM</option>
+              <option value="lms">LMS (Linear Multi-Step)</option>
+              <option value="heun">Heun (2nd Order)</option>
+            </optgroup>
           </select>
         </div>
         <div class="setting-group">
