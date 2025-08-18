@@ -5,7 +5,8 @@ import { AutoTokenizer, env, PreTrainedTokenizer } from '@xenova/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = false;
 
-let BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
+// let BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
+let BASE_URL = "animeanything_v10"
 
 export const MODEL_URLS = {
   "unet": `${BASE_URL}/unet/model.onnx`,
@@ -218,7 +219,7 @@ export class ModelManager {
   async loadModels(onProgress?: (stage: string, progress: number) => void): Promise<void> {
     this.modelConfig.unet.url = BASE_URL + '/unet/model.onnx';
     this.modelConfig.unet.weightsUrl = BASE_URL + '/unet/weights.pb';
-    this.modelConfig.vaeDecoder.url = BASE_URL + '/vae/model.onnx';
+    this.modelConfig.vaeDecoder.url = BASE_URL + '/vae_decoder/model.onnx';
     this.modelConfig.textEncoder.url = BASE_URL + '/text_encoder/model.onnx';
 
     if (this.isLoaded) return;

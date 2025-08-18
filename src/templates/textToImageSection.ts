@@ -62,8 +62,9 @@ export const textToImageSectionTemplate = `
           <div class="model-select-group">
             <label for="modelSelect">Model:</label>
             <select id="modelSelect">
-            <option value="subpixel/small-stable-diffusion-v0-onnx-ort-web">Small Stable Diffusion V0 ONNX</option>
-              <option value="subpixel/anythingv5-onnx">Anything V5 ONNX</option>
+            <option value="subpixel/small-stable-diffusion-v0-onnx-ort-web">Small Stable Diffusion V0</option>
+            <option value="subpixel/Typhoon-SD15-V2-onnx">Typhoon SD (better, larger)</option>
+            <option value="subpixel/animeanything_v10-onnx">Anime model</option>
             </select>
           </div>
         <div class="status-indicator" id="modelStatus">
