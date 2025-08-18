@@ -59,6 +59,13 @@ export const textToImageSectionTemplate = `
         </div>
       </div>
       <div class="model-status">
+          <div class="model-select-group">
+            <label for="modelSelect">Model:</label>
+            <select id="modelSelect">
+            <option value="subpixel/small-stable-diffusion-v0-onnx-ort-web">Small Stable Diffusion V0 ONNX</option>
+              <option value="subpixel/anythingv5-onnx">Anything V5 ONNX</option>
+            </select>
+          </div>
         <div class="status-indicator" id="modelStatus">
           <span class="status-dot"></span>
           <span class="status-text">Models not loaded</span>

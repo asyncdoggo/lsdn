@@ -2,6 +2,7 @@ import './style.css'
 import { ImageGenerator, type PatternType, type ResolutionKey } from './imageGenerator'
 import type { SchedulerType } from './schedulers'
 import { appTemplate } from './templates'
+import { setBaseUrl } from './core/modelManager'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = appTemplate
 
@@ -36,6 +37,7 @@ const guidanceValue = document.querySelector('#guidanceValue')!;
 const tileSizeValue = document.querySelector('#tileSizeValue')!;
 const modelStatus = document.querySelector('#modelStatus')!;
 const loadModelsBtn = document.querySelector<HTMLButtonElement>('#loadModelsBtn')!;
+const modelSelect = document.querySelector<HTMLSelectElement>('#modelSelect')!;
 
 // Resolution buttons
 const resolutionButtons = document.querySelectorAll('.resolution-btn');
@@ -116,6 +118,13 @@ modeButtons.forEach(btn => {
       });
     }
   });
+});
+
+
+modelSelect.addEventListener('change', () => {
+  const selectedModel = modelSelect.value;
+  setBaseUrl(selectedModel);
+  console.log('Selected model:', selectedModel);
 });
 
 // Text-to-image slider updates

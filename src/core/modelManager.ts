@@ -5,8 +5,7 @@ import { AutoTokenizer, env, PreTrainedTokenizer } from '@xenova/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = false;
 
-const BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
-// const BASE_URL = "stable_diffusion_2";
+let BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
 
 export const MODEL_URLS = {
   "unet": `${BASE_URL}/unet/model.onnx`,
@@ -19,6 +18,11 @@ export interface ModelSessions {
   textEncoder?: { sess: ort.InferenceSession };
   unet?: { sess: ort.InferenceSession };
   vaeDecoder?: { sess: ort.InferenceSession };
+}
+
+export function setBaseUrl(model_id: string): void {
+  const hfUrl = "https://huggingface.co/{model_id}/resolve/main";
+  BASE_URL = hfUrl.replace('{model_id}', model_id);
 }
 
 export class ModelManager {
@@ -212,6 +216,11 @@ export class ModelManager {
    * Load text encoder and tokenizer (UNet and VAE loaded on-demand)
    */
   async loadModels(onProgress?: (stage: string, progress: number) => void): Promise<void> {
+    this.modelConfig.unet.url = BASE_URL + '/unet/model.onnx';
+    this.modelConfig.unet.weightsUrl = BASE_URL + '/unet/weights.pb';
+    this.modelConfig.vaeDecoder.url = BASE_URL + '/vae/model.onnx';
+    this.modelConfig.textEncoder.url = BASE_URL + '/text_encoder/model.onnx';
+
     if (this.isLoaded) return;
 
     try {
