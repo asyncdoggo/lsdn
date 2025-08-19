@@ -9,8 +9,8 @@ export class KarrasNoiseSchedule extends BaseNoiseSchedule {
   private rho: number;
 
   constructor(
-    sigmaMin: number = 0.0292, 
-    sigmaMax: number = 14.6146, 
+    sigmaMin: number = 0.0292,
+    sigmaMax: number = 14.6146,
     numTrainTimesteps: number = 1000,
     rho: number = 7.0
   ) {
@@ -26,28 +26,31 @@ export class KarrasNoiseSchedule extends BaseNoiseSchedule {
    * Generate Karras-style sigma schedule
    * Formula: sigma = (sigmaMax^(1/rho) + t * (sigmaMin^(1/rho) - sigmaMax^(1/rho)))^rho
    */
-  generateSchedule(steps: number): NoiseScheduleResult {
+  generateSchedule(
+    steps: number,
+    opts?: { rho?: number; blend?: number }
+  ): NoiseScheduleResult {
+    const rho = opts?.rho ?? 7;        // skew control
+    const blend = opts?.blend ?? 0.6; // 0: geometric … 1: true Karras
+
     const sigmas: number[] = [];
     const timesteps: number[] = [];
-    
-    // Generate Karras sigmas using proper exponential schedule
+
     for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1); // t goes from 0 to 1
-      const minInvRho = this.sigmaMin ** (1 / this.rho);
-      const maxInvRho = this.sigmaMax ** (1 / this.rho);
-      const sigma = (maxInvRho + t * (minInvRho - maxInvRho)) ** this.rho;
+      const t = i / (steps - 1);
+      const tEff = (1 - blend) * t + blend * Math.pow(t, rho);
+      const sigma = this.sigmaMax * Math.pow(this.sigmaMin / this.sigmaMax, tEff);
       sigmas.push(sigma);
-      
-      // Convert to timestep (reverse mapping from high to low)
-      const timestep = this.numTrainTimesteps - 1 - Math.floor((this.numTrainTimesteps - 1) * t);
+
+      // fractional timestep mapping (hi→lo)
+      const timestep = (1 - t) * (this.numTrainTimesteps - 1);
       timesteps.push(timestep);
     }
-    
-    // Add final sigma of 0
     sigmas.push(0);
-    
     return { sigmas, timesteps };
   }
+
+
 
   /**
    * Set Karras-specific parameters
