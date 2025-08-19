@@ -89,8 +89,8 @@ export class TextToImageGenerator {
   /**
    * Load models
    */
-  async loadModels(onProgress?: (stage: string, progress: number) => void): Promise<void> {
-    return this.modelManager.loadModels(onProgress);
+  async loadModels(onProgress: (stage: string, progress: number) => void, resolution: { height: number; width: number }): Promise<void> {
+    return this.modelManager.loadModels(onProgress, resolution);
   }
 
   /**
@@ -113,8 +113,8 @@ export class TextToImageGenerator {
 
     let {
       prompt,
-      width = 512,
       height = 512,
+      width = 512,
       steps = 4,
       guidance = 7.5,
       seed,
@@ -186,7 +186,7 @@ export class TextToImageGenerator {
       if (onProgress) onProgress('Generating initial noise', 0.2);
 
       // Generate random latents with correct dimensions for the target resolution
-      const [latentHeight, latentWidth] = this.modelManager.getLatentDimensions(width, height);
+      const [latentHeight, latentWidth] = this.modelManager.getLatentDimensions(height, width);
       const latentShape = [1, 4, latentHeight, latentWidth];
       const latentData = this.noiseGenerator.generateRandomLatents(latentShape, 1.0);
       let latent = new ort.Tensor('float16', latentData, latentShape);
@@ -320,7 +320,7 @@ export class TextToImageGenerator {
         // Generate preview if callback is provided
         if (onPreview) {
           try {
-            const previewImageData = LatentPreview.latentToRGBAdvanced(latent, 64, 64);
+            const previewImageData = LatentPreview.latentToRGBAdvanced(latent, width, height);
             onPreview(previewImageData);
           } catch (error) {
             console.warn('Preview generation failed:', error);

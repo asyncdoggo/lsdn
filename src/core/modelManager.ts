@@ -117,7 +117,7 @@ export class ModelManager {
   /**
    * Generate latent dimensions based on actual image dimensions
    */
-  getLatentDimensions(width: number, height: number): [number, number] {
+  getLatentDimensions(height: number, width: number): [number, number] {
     // VAE encoder downsamples by factor of 8
     return [height / 8, width / 8];
   }
@@ -244,7 +244,7 @@ export class ModelManager {
   /**
    * Load models, VAE is loaded on demand
    */
-  async loadModels(onProgress?: (stage: string, progress: number) => void): Promise<void> {
+  async loadModels(onProgress: (stage: string, progress: number) => void, resolution: { height: number; width: number }): Promise<void> {
     this.modelConfig.unet.url = BASE_URL + '/unet/model.onnx';
     this.modelConfig.unet.weightsUrl = BASE_URL + '/unet/weights.pb';
     this.modelConfig.vaeDecoder.url = BASE_URL + '/vae_decoder/model.onnx';
@@ -269,13 +269,12 @@ export class ModelManager {
       if (onProgress) onProgress('Loading UNet for 512px', 0.6);
 
       // Load UNet for default 512px resolution
-      const [latentHeight, latentWidth] = this.getLatentDimensions(512, 512);
+      const [latentHeight, latentWidth] = this.getLatentDimensions(resolution.height, resolution.width);
 
       this.models.unet = {
         sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
       };
 
-      // Store current dimensions as 512px
       this.currentLatentDimensions = [latentHeight, latentWidth];
 
       this.isLoaded = true;

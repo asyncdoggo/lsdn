@@ -92,9 +92,11 @@ export class LatentPreview {
     const latentData = latent.data as Float16Array;
     const [, , latentHeight, latentWidth] = latent.dims as [number, number, number, number];
     
-    const targetWidth = Math.min(width, 64);
-    const targetHeight = Math.min(height, 64);
-    
+    // const targetWidth = Math.min(width, 64);
+    // const targetHeight = Math.min(height, 64);
+    const targetWidth = Math.round(width / 3);
+    const targetHeight = Math.round(height / 3);
+
     const imageData = new ImageData(targetWidth, targetHeight);
     const pixels = imageData.data;
     

@@ -22,6 +22,12 @@ const downloadBtn = document.querySelector<HTMLButtonElement>('#download')!
 const statusSection = document.querySelector('.status-section') as HTMLDivElement;
 const loadingText = document.querySelector('.loading-text') as HTMLParagraphElement;
 
+// Resolution elements
+const widthSlider = document.querySelector<HTMLInputElement>('#widthSlider')!;
+const heightSlider = document.querySelector<HTMLInputElement>('#heightSlider')!;
+const widthValue = document.querySelector<HTMLElement>('#widthValue')!;
+const heightValue = document.querySelector<HTMLElement>('#heightValue')!;
+
 // Text-to-image elements
 const promptInput = document.querySelector<HTMLTextAreaElement>('#promptInput')!;
 const negativePromptInput = document.querySelector<HTMLTextAreaElement>('#negativePromptInput')!;
@@ -72,55 +78,48 @@ modeButtons.forEach(btn => {
     btn.classList.add('active');
     generationMode = btn.getAttribute('data-mode') as 'pattern' | 'text';
     
-    // Get 64px button
-    const res64Btn = document.querySelector('[data-resolution="64"]') as HTMLElement;
-    
     // Toggle UI sections
     if (generationMode === 'text') {
       patternSection.classList.add('hidden');
       textToImageSection.classList.remove('hidden');
       colorSection.classList.add('hidden'); // Hide color mode for text-to-image
       
-      // Add testing note to 64px button
-      if (res64Btn && !res64Btn.querySelector('.testing-note')) {
-        res64Btn.innerHTML = '64px <span class="testing-note">(only for testing)</span>';
-      }
+      // Show sliders and hide buttons for text-to-image mode
+      document.querySelector('.resolution-buttons')?.classList.add('hidden');
+      document.querySelector('.resolution-sliders')?.classList.remove('hidden');
       
-      // Hide resolution buttons larger than 512px for text-to-image
-      resolutionButtons.forEach(btn => {
-        const resolution = btn.getAttribute('data-resolution');
-        if (['128', '256', '1024', '1536', '4MP', '8MP', '12MP'].includes(resolution || '')) {
-          (btn as HTMLElement).style.display = 'none';
-        } else {
-          (btn as HTMLElement).style.display = 'block';
-        }
-      });
-      
-      // If current resolution is not 64 or 512, switch to 512
-      if (!['64', '512'].includes(currentResolution)) {
-        currentResolution = '512';
-        resolutionButtons.forEach(b => b.classList.remove('active'));
-        const res512Btn = document.querySelector('[data-resolution="512"]');
-        if (res512Btn) res512Btn.classList.add('active');
-      }
+      // Initialize sliders with default values
+      widthSlider.value = '512';
+      heightSlider.value = '512';
+      widthValue.textContent = '512';
+      heightValue.textContent = '512';
+      currentResolution = '512x512' as ResolutionKey;
     } else {
       patternSection.classList.remove('hidden');
       textToImageSection.classList.add('hidden');
       colorSection.classList.remove('hidden'); // Show color mode for patterns
       
-      // Remove testing note from 64px button
-      if (res64Btn) {
-        res64Btn.innerHTML = '64px';
-      }
+      // Show buttons and hide sliders for pattern mode
+      document.querySelector('.resolution-buttons')?.classList.remove('hidden');
+      document.querySelector('.resolution-sliders')?.classList.add('hidden');
       
-      // Show all resolution buttons for pattern mode
-      resolutionButtons.forEach(btn => {
-        (btn as HTMLElement).style.display = 'block';
-      });
+      // Reset to default pattern resolution
+      currentResolution = '1536';
     }
   });
 });
 
+
+// Resolution slider events
+widthSlider.addEventListener('input', () => {
+  widthValue.textContent = widthSlider.value;
+  currentResolution = `${widthSlider.value}x${heightSlider.value}` as ResolutionKey;
+});
+
+heightSlider.addEventListener('input', () => {
+  heightValue.textContent = heightSlider.value;
+  currentResolution = `${widthSlider.value}x${heightSlider.value}` as ResolutionKey;
+});
 
 modelSelect.addEventListener('change', () => {
   const selectedModel = modelSelect.value;
@@ -163,11 +162,15 @@ loadModelsBtn.addEventListener('click', async () => {
   try {
     updateModelStatus('loading', 'Loading models...');
     if (btnText) btnText.textContent = 'Loading...';
-    
+
+
+    const width = parseInt(widthSlider.value);
+    const height = parseInt(heightSlider.value);
+
     await imageGenerator.initializeTextToImage((stage, progress) => {
       updateModelStatus('loading', `${stage} (${Math.round(progress * 100)}%)`);
-    });
-    
+    }, { height, width });
+
     updateModelStatus('ready', 'Models loaded and ready');
     if (btnText) btnText.textContent = 'Models Loaded ✓';
     loadModelsBtn.style.display = 'none'; // Hide the button once loaded
@@ -268,15 +271,14 @@ generateBtn.addEventListener('click', async () => {
         alert('AI models are not loaded. Please click "Load AI Models" first.');
         return;
       }
-      
-      // Force supported resolution for text-to-image (should already be valid due to UI restrictions)
-      if (!['64', '512'].includes(currentResolution)) {
-        currentResolution = '512';
-      }
-      
+
+      const width = parseInt(widthSlider.value);
+      const height = parseInt(heightSlider.value);
+
       const options = {
+        height,
+        width,
         negativePrompt: negativePromptInput.value.trim(),
-        resolutionKey: currentResolution,
         steps: parseInt(stepsSlider.value),
         guidance: parseFloat(guidanceSlider.value),
         scheduler: schedulerSelect.value as SchedulerType,
@@ -298,18 +300,18 @@ generateBtn.addEventListener('click', async () => {
           const ctx = canvas.getContext('2d');
           if (ctx) {
             // Set up canvas for 64x64 preview and clear any previous content
-            canvas.width = 64;
-            canvas.height = 64;
-            
+            canvas.width = width / 8;
+            canvas.height = height / 8;
+
             // Clear the canvas explicitly (though setting width/height should do this)
-            ctx.clearRect(0, 0, 64, 64);
-            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
             // Draw the preview
             ctx.putImageData(previewImageData, 0, 0);
             
             // Scale canvas display for visibility while keeping internal resolution at 64x64
-            canvas.style.width = '256px';
-            canvas.style.height = '256px';
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${height}px`;
             canvas.style.imageRendering = 'pixelated';
           }
         }

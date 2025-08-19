@@ -12,5 +12,17 @@ export const resolutionSectionTemplate = `
       <button class="resolution-btn" data-resolution="8MP">8MP</button>
       <button class="resolution-btn" data-resolution="12MP">12MP</button>
     </div>
+    <div class="resolution-sliders hidden">
+      <div class="setting-group">
+        <label>Width</label>
+        <input type="range" id="widthSlider" min="64" max="2560" value="512" step="64">
+        <span id="widthValue">512</span>px
+      </div>
+      <div class="setting-group">
+        <label>Height</label>
+        <input type="range" id="heightSlider" min="64" max="2560" value="512" step="64">
+        <span id="heightValue">512</span>px
+      </div>
+    </div>
   </div>
 `;

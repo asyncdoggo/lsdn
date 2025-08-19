@@ -155,13 +155,13 @@ export class ImageGenerator {
   /**
    * Initialize the text-to-image generator and load ONNX models
    */
-  async initializeTextToImage(onProgress?: (stage: string, progress: number) => void): Promise<void> {
+  async initializeTextToImage(onProgress: (stage: string, progress: number) => void, resolution: { height: number; width: number }): Promise<void> {
     if (!this.textToImageGenerator) {
       this.textToImageGenerator = new TextToImageGenerator();
     }
     
     if (!this.textToImageGenerator.modelsLoaded) {
-      await this.textToImageGenerator.loadModels(onProgress);
+      await this.textToImageGenerator.loadModels(onProgress, resolution);
     }
   }
 
@@ -172,8 +172,9 @@ export class ImageGenerator {
     canvas: HTMLCanvasElement,
     prompt: string,
     options: {
+      height?: number;
+      width?: number;
       negativePrompt?: string;
-      resolutionKey?: ResolutionKey;
       steps?: number;
       guidance?: number;
       seed?: number;
@@ -190,8 +191,9 @@ export class ImageGenerator {
     }
 
     const {
+      height = 512,
+      width = 512,
       negativePrompt = '',
-      resolutionKey = '512',
       steps = 20,
       guidance = 7.5,
       seed,
@@ -201,18 +203,12 @@ export class ImageGenerator {
       tileSize = 256
     } = options;
 
-    const resolution = this.resolutions[resolutionKey];
     
-    // Support resolutions up to 512x512 for ONNX web inference
-    if (resolution.width > 512 || resolution.height > 512) {
-      throw new Error('Text-to-image generation is currently limited to 512x512 resolution for performance reasons.');
-    }
-
     const textToImageOptions: TextToImageOptions = {
       prompt,
       negativePrompt,
-      width: resolution.width,
-      height: resolution.height,
+      height: height,
+      width: width,
       steps,
       guidance,
       seed,
@@ -226,9 +222,9 @@ export class ImageGenerator {
     const imageData = await this.textToImageGenerator.generateImage(textToImageOptions, onProgress, onPreview);
 
     // Setup canvas and display the generated image
-    const ctx = CanvasUtils.setupCanvas(canvas, resolution);
+    const ctx = CanvasUtils.setupCanvas(canvas, { width, height });
     ctx.putImageData(imageData, 0, 0);
-    CanvasUtils.scaleCanvasDisplay(canvas, resolution);
+    CanvasUtils.scaleCanvasDisplay(canvas, { width, height });
   }
 
   /**
