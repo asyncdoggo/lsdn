@@ -35,7 +35,7 @@ export class ModelManager {
   private readonly modelConfig = {
     textEncoder: {
       url: MODEL_URLS.textEncoder,
-      opt: { 
+      opt: {
         freeDimensionOverrides: { batch_size: 1 },
         executionProviders: ['webgpu'],
         enableMemPattern: false,
@@ -53,7 +53,7 @@ export class ModelManager {
     unet: {
       url: MODEL_URLS.unet,
       weightsUrl: MODEL_URLS.weights_url,
-      baseOpt: { 
+      baseOpt: {
         externalData: [{
           path: './weights.pb',
           data: MODEL_URLS.weights_url
@@ -82,7 +82,7 @@ export class ModelManager {
     },
     vaeDecoder: {
       url: MODEL_URLS.vaeDecoder,
-      baseOpt: { 
+      baseOpt: {
         executionProviders: ['webgpu'],
         enableMemPattern: false,
         enableCpuMemArena: false,
@@ -128,7 +128,7 @@ export class ModelManager {
   async createUNetSession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
     const unetBytes = await this.fetchAndCache(this.modelConfig.unet.url, onProgress, 'UNet Model');
     let weightsBytes = new ArrayBuffer(0);
-    
+
     if (this.modelConfig.unet.weightsUrl) {
       weightsBytes = await this.fetchAndCache(this.modelConfig.unet.weightsUrl, onProgress, 'UNet Weights');
     }
@@ -137,10 +137,10 @@ export class ModelManager {
       ...this.modelConfig.unet.baseOpt,
       freeDimensionOverrides: {
         batch_size: 2, // Support batched CFG inference (negative + positive)
-        num_channels: 4, 
-        height: latentHeight, 
-        width: latentWidth, 
-        sequence_length: 77 
+        num_channels: 4,
+        height: latentHeight,
+        width: latentWidth,
+        sequence_length: 77
       },
       externalData: this.modelConfig.unet.weightsUrl ? [{
         data: weightsBytes,
@@ -156,14 +156,14 @@ export class ModelManager {
    */
   async createVAESession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
     const vaeBytes = await this.fetchAndCache(this.modelConfig.vaeDecoder.url, onProgress, 'VAE Decoder');
-    
+
     const vaeOptions = {
       ...this.modelConfig.vaeDecoder.baseOpt,
       freeDimensionOverrides: {
-        batch_size: 1, 
-        num_channels_latent: 4, 
-        height_latent: latentHeight, 
-        width_latent: latentWidth 
+        batch_size: 1,
+        num_channels_latent: 4,
+        height_latent: latentHeight,
+        width_latent: latentWidth
       }
     };
 
@@ -183,10 +183,43 @@ export class ModelManager {
           onProgress(`Downloading ${modelName} from network...`, 0.1);
         }
         console.log(`${url} (downloading from network)`);
-        
-        await cache.add(url);
+
+        // start fetch
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch model from ${url}: ${response.statusText}`);
+        }
+
+        // Get reader
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error(`Failed to get reader for ${url}`);
+        }
+        const contentLength = +response.headers.get("Content-Length")!;
+        let receivedLength = 0;
+        let chunks = [];
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          receivedLength += value.length;
+          if (onProgress) {
+            onProgress(`Downloading ${modelName} from network... (This is a one-time operation)`, 0.1 + (receivedLength / contentLength) * 0.8);
+          }
+        }
+        // Reconstruct body
+        const blob = new Blob(chunks);
+        const fullResponse = new Response(blob, {
+          headers: response.headers
+        });
+
+        // Put into cache
+        await cache.put(url, fullResponse);
         cachedResponse = await cache.match(url);
-        console.log(`${url} (network)`);
+
+        if(!cachedResponse) {
+          throw new Error(`Failed to cache response for ${url}`);
+        }
       } else {
         console.log(`${url} (cached)`);
       }
@@ -195,12 +228,8 @@ export class ModelManager {
       }
       throw new Error('Failed to cache response');
     } catch (error) {
-      // Fallback to direct fetch
-      if (onProgress && modelName) {
-        onProgress(`Downloading ${modelName} (fallback)...`, 0.1);
-      }
-      console.log(`${url} (network fallback)`);
-      return await fetch(url).then(response => response.arrayBuffer());
+      alert(`Failed to fetch model from ${url}: ${error}`);
+      throw error;
     }
   }
 
@@ -225,7 +254,7 @@ export class ModelManager {
 
     try {
       if (onProgress) onProgress('Loading Text Encoder', 0.2);
-      
+
       // Load text encoder (this one doesn't depend on resolution)
       const textEncoderBytes = await this.fetchAndCache(this.modelConfig.textEncoder.url, onProgress, 'Text Encoder');
       this.models.textEncoder = {
@@ -233,15 +262,15 @@ export class ModelManager {
       };
 
       if (onProgress) onProgress('Loading Tokenizer', 0.4);
-      
+
       // Load tokenizer
       await this.initializeTokenizer();
 
       if (onProgress) onProgress('Loading UNet for 512px', 0.6);
-      
+
       // Load UNet for default 512px resolution
       const [latentHeight, latentWidth] = this.getLatentDimensions(512, 512);
-      
+
       this.models.unet = {
         sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
       };
@@ -251,7 +280,7 @@ export class ModelManager {
 
       this.isLoaded = true;
       if (onProgress) onProgress('Models Loaded', 1.0);
-      
+
     } catch (error) {
       console.error('Failed to load models:', error);
       throw new Error(`Model loading failed: ${error}`);
@@ -264,13 +293,13 @@ export class ModelManager {
   needsNewModels(latentHeight: number, latentWidth: number): boolean {
     // Check if UNet exists for the requested dimensions
     const unetMissing = this.models.unet?.sess === undefined;
-    
+
     // Check if dimensions have changed
     const dimensionsChanged = this.currentLatentDimensions?.[0] !== latentHeight ||
-                             this.currentLatentDimensions?.[1] !== latentWidth;
-    
+      this.currentLatentDimensions?.[1] !== latentWidth;
+
     const needsReload = unetMissing || dimensionsChanged;
-    
+
     return needsReload;
   }
 
@@ -278,12 +307,12 @@ export class ModelManager {
    * Update models for new resolution
    */
   async reloadUnet(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<void> {
-    
+
     // Dispose existing UNet session if it exists
     if (this.models.unet?.sess) {
       await this.models.unet.sess.release();
     }
-    
+
     // VAE decoder is loaded on-demand, so we don't need to dispose it here
     // It will be created fresh when needed for the specific resolution
 
@@ -337,7 +366,7 @@ export class ModelManager {
     if (this.models.vaeDecoder?.sess) {
       await this.models.vaeDecoder.sess.release();
     }
-    
+
     this.models = {};
     this.isLoaded = false;
     this.currentLatentDimensions = null;

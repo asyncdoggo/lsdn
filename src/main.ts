@@ -149,6 +149,11 @@ tileSizeSlider.addEventListener('input', () => {
 
 // Load models button
 loadModelsBtn.addEventListener('click', async () => {
+  if (!("gpu" in navigator)) {
+    alert('GPU is needed to run. Please use a compatible browser with WebGPU support.');
+    return;
+  }
+
   if (loadModelsBtn.disabled) return;
   
   loadModelsBtn.disabled = true;
