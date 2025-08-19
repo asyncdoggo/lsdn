@@ -1,15 +1,19 @@
 import * as ort from 'onnxruntime-web/webgpu';
 import { BaseScheduler } from './baseScheduler';
 import type { SchedulerTimesteps, SchedulerStepResult } from './baseScheduler';
+import { KarrasNoiseSchedule, type BaseNoiseSchedule } from '../noiseSchedules';
 
 export class LMSScheduler extends BaseScheduler {
-  private sigmaMin: number = 0.0292;
-  private sigmaMax: number = 14.6146;
-  private rho: number = 7.0;
+  private noiseSchedule: BaseNoiseSchedule;
   private order: number = 4; // LMS order (1-4, higher is more accurate but requires more memory)
   private timesteps: number[] = [];
   private sigmas: number[] = [];
   private derivatives: ort.Tensor[] = []; // Store previous derivatives for multi-step
+
+  constructor() {
+    super();
+    this.noiseSchedule = new KarrasNoiseSchedule();
+  }
 
   get name(): string {
     return `LMS-${this.order}`;
@@ -19,25 +23,12 @@ export class LMSScheduler extends BaseScheduler {
    * Generate timesteps and sigmas for LMS scheduler using Karras noise schedule
    */
   generateTimesteps(steps: number): SchedulerTimesteps {
-    this.timesteps = [];
-    this.sigmas = [];
-    this.derivatives = []; // Reset derivatives for new generation
+    const schedule = this.noiseSchedule.generateSchedule(steps);
+    this.timesteps = schedule.timesteps;
+    this.sigmas = schedule.sigmas;
     
-    // Generate karras sigmas (same as Euler-Karras for consistency)
-    for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1);
-      const minInvRho = this.sigmaMin ** (1 / this.rho);
-      const maxInvRho = this.sigmaMax ** (1 / this.rho);
-      const sigma = (maxInvRho + t * (minInvRho - maxInvRho)) ** this.rho;
-      this.sigmas.push(sigma);
-      
-      // Convert sigma to timestep
-      const timestep = this.numTrainTimesteps - 1 - Math.floor((this.numTrainTimesteps - 1) * t);
-      this.timesteps.push(timestep);
-    }
-    
-    // Add final sigma of 0
-    this.sigmas.push(0);
+    // Reset state for new generation
+    this.reset();
     
     return { timesteps: this.timesteps, sigmas: this.sigmas };
   }
@@ -193,10 +184,7 @@ export class LMSScheduler extends BaseScheduler {
   /**
    * Set LMS scheduler parameters
    */
-  setParameters(sigmaMin?: number, sigmaMax?: number, rho?: number, order?: number): void {
-    if (sigmaMin !== undefined) this.sigmaMin = sigmaMin;
-    if (sigmaMax !== undefined) this.sigmaMax = sigmaMax;
-    if (rho !== undefined) this.rho = rho;
+  setParameters(order?: number): void {
     if (order !== undefined && order >= 1 && order <= 4) {
       this.order = order;
       // Reset derivatives when order changes

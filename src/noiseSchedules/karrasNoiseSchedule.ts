@@ -31,7 +31,7 @@ export class KarrasNoiseSchedule extends BaseNoiseSchedule {
     opts?: { rho?: number; blend?: number }
   ): NoiseScheduleResult {
     const rho = opts?.rho ?? 7;        // skew control
-    const blend = opts?.blend ?? 0.6; // 0: geometric … 1: true Karras
+    const blend = opts?.blend ?? 0.4; // 0: geometric … 1: true Karras
 
     const sigmas: number[] = [];
     const timesteps: number[] = [];

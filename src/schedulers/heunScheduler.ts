@@ -1,14 +1,21 @@
 import * as ort from 'onnxruntime-web/webgpu';
 import { BaseScheduler } from './baseScheduler';
 import type { SchedulerTimesteps, SchedulerStepResult } from './baseScheduler';
+import { KarrasNoiseSchedule } from '../noiseSchedules';
 
 export class HeunScheduler extends BaseScheduler {
   private sigmaMin: number = 0.0292;
   private sigmaMax: number = 14.6146;
   private rho: number = 7.0;
+  private noiseSchedule: KarrasNoiseSchedule;
   private timesteps: number[] = [];
   private sigmas: number[] = [];
   private lastDerivative: ort.Tensor | null = null; // Store previous derivative for second-order method
+
+  constructor() {
+    super();
+    this.noiseSchedule = new KarrasNoiseSchedule(this.sigmaMin, this.sigmaMax, 1000, this.rho);
+  }
 
   get name(): string {
     return 'Heun';
@@ -18,27 +25,14 @@ export class HeunScheduler extends BaseScheduler {
    * Generate timesteps and sigmas for Heun scheduler using Karras noise schedule
    */
   generateTimesteps(steps: number): SchedulerTimesteps {
-    this.timesteps = [];
-    this.sigmas = [];
-    this.lastDerivative = null; // Reset for new generation
+    const schedule = this.noiseSchedule.generateSchedule(steps);
+    this.timesteps = schedule.timesteps;
+    this.sigmas = schedule.sigmas;
     
-    // Generate karras sigmas (same as Euler-Karras for consistency)
-    for (let i = 0; i < steps; i++) {
-      const t = i / (steps - 1);
-      const minInvRho = this.sigmaMin ** (1 / this.rho);
-      const maxInvRho = this.sigmaMax ** (1 / this.rho);
-      const sigma = (maxInvRho + t * (minInvRho - maxInvRho)) ** this.rho;
-      this.sigmas.push(sigma);
-      
-      // Convert sigma to timestep
-      const timestep = this.numTrainTimesteps - 1 - Math.floor((this.numTrainTimesteps - 1) * t);
-      this.timesteps.push(timestep);
-    }
-    
-    // Add final sigma of 0
-    this.sigmas.push(0);
-    
-    return { timesteps: this.timesteps, sigmas: this.sigmas };
+    // Reset state for new generation
+    this.reset();
+
+    return { timesteps: this.timesteps, sigmas: this.sigmas };    
   }
 
   /**
