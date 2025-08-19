@@ -10,6 +10,7 @@ export interface SchedulerStepResult {
 }
 
 export abstract class BaseScheduler {
+  reset() {}
   protected numTrainTimesteps: number = 1000;
   protected numInferenceSteps: number = 4;
   

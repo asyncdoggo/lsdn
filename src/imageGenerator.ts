@@ -179,6 +179,7 @@ export class ImageGenerator {
       seed?: number;
       scheduler?: SchedulerType;
       useTiledVAE?: boolean;
+      lowMemoryMode?: boolean;
       tileSize?: number;
     } = {},
     onProgress?: (stage: string, progress: number) => void,
@@ -195,7 +196,8 @@ export class ImageGenerator {
       guidance = 7.5,
       seed,
       scheduler = 'euler-karras',
-      useTiledVAE = false,
+      useTiledVAE = true,
+      lowMemoryMode = true,
       tileSize = 256
     } = options;
 
@@ -216,6 +218,7 @@ export class ImageGenerator {
       seed,
       scheduler: scheduler as SchedulerType,
       useTiledVAE,
+      lowMemoryMode,
       tileSize
     };
 

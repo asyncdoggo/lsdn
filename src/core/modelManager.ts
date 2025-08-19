@@ -5,8 +5,7 @@ import { AutoTokenizer, env, PreTrainedTokenizer } from '@xenova/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = false;
 
-// let BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
-let BASE_URL = "animeanything_v10"
+let BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
 
 export const MODEL_URLS = {
   "unet": `${BASE_URL}/unet/model.onnx`,
@@ -214,7 +213,7 @@ export class ModelManager {
   }
 
   /**
-   * Load text encoder and tokenizer (UNet and VAE loaded on-demand)
+   * Load models, VAE is loaded on demand
    */
   async loadModels(onProgress?: (stage: string, progress: number) => void): Promise<void> {
     this.modelConfig.unet.url = BASE_URL + '/unet/model.onnx';
@@ -278,27 +277,23 @@ export class ModelManager {
   /**
    * Update models for new resolution
    */
-  async updateModelsForResolution(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<void> {
-    console.log(`🔄 Updating models for resolution: [${latentHeight}, ${latentWidth}]`);
+  async reloadUnet(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<void> {
     
     // Dispose existing UNet session if it exists
     if (this.models.unet?.sess) {
-      console.log('🗑️ Disposing existing UNet session');
       await this.models.unet.sess.release();
     }
     
-    // Note: VAE decoder is loaded on-demand, so we don't need to dispose it here
+    // VAE decoder is loaded on-demand, so we don't need to dispose it here
     // It will be created fresh when needed for the specific resolution
 
     // Create new UNet session with correct dimensions
-    console.log('🏗️ Creating new UNet session');
     this.models.unet = {
       sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
     };
 
     // Store current dimensions
     this.currentLatentDimensions = [latentHeight, latentWidth];
-    console.log(`✅ Models updated for dimensions [${latentHeight}, ${latentWidth}]`);
   }
 
   /**

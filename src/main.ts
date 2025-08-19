@@ -30,6 +30,7 @@ const guidanceSlider = document.querySelector<HTMLInputElement>('#guidanceSlider
 const schedulerSelect = document.querySelector<HTMLSelectElement>('#schedulerSelect')!;
 const seedInput = document.querySelector<HTMLInputElement>('#seedInput')!;
 const tiledVAECheck = document.querySelector<HTMLInputElement>('#tiledVAECheck')!;
+const lowMemoryCheck = document.querySelector<HTMLInputElement>('#lowMemory')!;
 const tileSizeSlider = document.querySelector<HTMLInputElement>('#tileSizeSlider')!;
 const tileSizeGroup = document.querySelector<HTMLElement>('#tileSizeGroup')!;;
 const stepsValue = document.querySelector('#stepsValue')!;
@@ -276,6 +277,7 @@ generateBtn.addEventListener('click', async () => {
         scheduler: schedulerSelect.value as SchedulerType,
         seed: seedInput.value ? parseInt(seedInput.value) : undefined,
         useTiledVAE: tiledVAECheck.checked,
+        lowMemoryMode: lowMemoryCheck.checked,
         tileSize: parseInt(tileSizeSlider.value)
       };
       

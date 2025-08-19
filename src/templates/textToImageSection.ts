@@ -53,6 +53,12 @@ export const textToImageSectionTemplate = `
             Tiled VAE (reduces memory usage)
           </label>
         </div>
+        <div class="setting-group">
+          <label for="lowMemory">
+            <input type="checkbox" id="lowMemory" checked />
+            Low Memory Mode (unloads unet when decoding)
+          </label>
+        </div>
         <div class="setting-group" id="tileSizeGroup">
           <label for="tileSizeSlider">Tile Size: <span id="tileSizeValue">256</span>px</label>
           <input type="range" id="tileSizeSlider" min="64" max="512" step="64" value="256" />
