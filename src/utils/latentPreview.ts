@@ -92,21 +92,14 @@ export class LatentPreview {
     const latentData = latent.data as Float16Array;
     const [, , latentHeight, latentWidth] = latent.dims as [number, number, number, number];
     
-    // const targetWidth = Math.min(width, 64);
-    // const targetHeight = Math.min(height, 64);
-    const targetWidth = Math.round(width / 3);
-    const targetHeight = Math.round(height / 3);
+    // Use 1/4 of the final image size for preview (good balance of size and performance)
+    const targetWidth = Math.max(width / 4, latentWidth * 8);
+    const targetHeight = Math.max(height / 4, latentHeight * 8);
 
     const imageData = new ImageData(targetWidth, targetHeight);
     const pixels = imageData.data;
     
-    // More sophisticated channel mixing based on typical VAE behavior
-    const rgbWeights = [
-      [0.298, 0.207, 0.208, 0.287], // R weights for channels 0,1,2,3
-      [0.187, 0.448, 0.173, 0.192], // G weights
-      [0.214, 0.178, 0.402, 0.206]  // B weights
-    ];
-    
+    // Simple direct mapping - focus on showing structure rather than exact colors
     for (let y = 0; y < targetHeight; y++) {
       for (let x = 0; x < targetWidth; x++) {
         const latentX = Math.floor((x / targetWidth) * latentWidth);
@@ -120,24 +113,34 @@ export class LatentPreview {
           latentData[3 * latentHeight * latentWidth + baseIdx] || 0
         ];
         
-        // Apply weighted mixing
-        let r = 0, g = 0, b = 0;
-        for (let ch = 0; ch < 4; ch++) {
-          const normalizedVal = this.normalizeLatentValue(latentValues[ch]);
-          r += normalizedVal * rgbWeights[0][ch];
-          g += normalizedVal * rgbWeights[1][ch];
-          b += normalizedVal * rgbWeights[2][ch];
-        }
+        // Direct visualization of the latent space
+        // Using first 3 channels for RGB to show structure
+        const l0 = latentValues[0];
+        const l1 = latentValues[1];
+        const l2 = latentValues[2];
         
-        // Apply gamma correction for better visibility
-        r = Math.pow(Math.max(0, Math.min(1, r)), 0.8);
-        g = Math.pow(Math.max(0, Math.min(1, g)), 0.8);
-        b = Math.pow(Math.max(0, Math.min(1, b)), 0.8);
+        // Map from [-2, 2] to [0, 1] range
+        const mapRange = (x: number) => (x + 2) / 4;
+        
+        // Direct mapping of channels
+        let r = mapRange(l0);
+        let g = mapRange(l1);
+        let b = mapRange(l2);
+        
+        // Apply very mild contrast
+        const enhanceValue = (v: number) => {
+            v = Math.max(0, Math.min(1, v));
+            return Math.pow(v, 0.95); // Very slight gamma for visibility
+        };
+        
+        r = enhanceValue(r);
+        g = enhanceValue(g);
+        b = enhanceValue(b);
         
         const pixelIdx = (y * targetWidth + x) * 4;
-        pixels[pixelIdx] = Math.round(r * 255);
-        pixels[pixelIdx + 1] = Math.round(g * 255);
-        pixels[pixelIdx + 2] = Math.round(b * 255);
+        pixels[pixelIdx] = Math.round(r * 255);     // R - first latent channel
+        pixels[pixelIdx + 1] = Math.round(g * 255); // G - second latent channel
+        pixels[pixelIdx + 2] = Math.round(b * 255); // B - third latent channel
         pixels[pixelIdx + 3] = 255;
       }
     }

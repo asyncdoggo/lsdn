@@ -299,20 +299,21 @@ generateBtn.addEventListener('click', async () => {
           // Update canvas with preview during generation
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            // Set up canvas for 64x64 preview and clear any previous content
-            canvas.width = width / 8;
-            canvas.height = height / 8;
+            // Set canvas to match preview image size
+            canvas.width = previewImageData.width;
+            canvas.height = previewImageData.height;
 
-            // Clear the canvas explicitly (though setting width/height should do this)
+            // Clear the canvas explicitly
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Draw the preview
             ctx.putImageData(previewImageData, 0, 0);
             
-            // Scale canvas display for visibility while keeping internal resolution at 64x64
+            // Scale canvas display size while maintaining aspect ratio
             canvas.style.width = `${width}px`;
             canvas.style.height = `${height}px`;
-            canvas.style.imageRendering = 'pixelated';
+            // Use smooth scaling for preview
+            canvas.style.imageRendering = 'auto';
           }
         }
       );
