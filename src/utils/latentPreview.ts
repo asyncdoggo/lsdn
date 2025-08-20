@@ -113,29 +113,45 @@ export class LatentPreview {
           latentData[3 * latentHeight * latentWidth + baseIdx] || 0
         ];
         
-        // Direct visualization of the latent space
-        // Using first 3 channels for RGB to show structure
-        const l0 = latentValues[0];
-        const l1 = latentValues[1];
-        const l2 = latentValues[2];
-        
-        // Map from [-2, 2] to [0, 1] range
-        const mapRange = (x: number) => (x + 2) / 4;
-        
-        // Direct mapping of channels
-        let r = mapRange(l0);
-        let g = mapRange(l1);
-        let b = mapRange(l2);
-        
-        // Apply very mild contrast
-        const enhanceValue = (v: number) => {
-            v = Math.max(0, Math.min(1, v));
-            return Math.pow(v, 0.95); // Very slight gamma for visibility
+        // Enhanced latent visualization with better color mapping
+        const [l0, l1, l2, l3] = latentValues;
+
+        // Normalize latent values with dynamic range
+        const normalizeLatent = (x: number) => {
+          // Center around 0 and scale appropriately
+          return (Math.tanh(x / 2) + 1) / 2;
         };
+
+        // Enhanced color mapping with luminance preservation
+        const luminance = normalizeLatent(l0 * 0.7 + l1 * 0.2 + l2 * 0.1);
         
-        r = enhanceValue(r);
-        g = enhanceValue(g);
-        b = enhanceValue(b);
+        // Map channels with better perceptual weighting
+        let r = normalizeLatent(l0 * 0.8 + l2 * 0.2); // Red - emphasize first channel
+        let g = normalizeLatent(l1 * 0.7 + l0 * 0.2 + l3 * 0.1); // Green - mix of channels
+        let b = normalizeLatent(l2 * 0.6 + l1 * 0.2 + l3 * 0.2); // Blue - balanced mix
+
+        // Enhance contrast while preserving detail
+        const enhanceContrast = (v: number, lum: number) => {
+          // Dynamic contrast based on luminance
+          const contrast = 1.2 + (0.3 * (1 - Math.abs(lum - 0.5)));
+          // Apply contrast while preserving midtones
+          const x = v - 0.5;
+          return 0.5 + (x * contrast);
+        };
+
+        // Apply contrast enhancement
+        r = enhanceContrast(r, luminance);
+        g = enhanceContrast(g, luminance);
+        b = enhanceContrast(b, luminance);
+
+        // Local tone mapping for better detail visibility
+        const tonemap = (v: number) => {
+          return Math.pow(Math.max(0, Math.min(1, v)), 0.85);
+        };
+
+        r = tonemap(r);
+        g = tonemap(g);
+        b = tonemap(b);
         
         const pixelIdx = (y * targetWidth + x) * 4;
         pixels[pixelIdx] = Math.round(r * 255);     // R - first latent channel

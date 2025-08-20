@@ -81,6 +81,10 @@ export const textToImageSectionTemplate = `
           <span class="btn-icon">📥</span>
           <span class="btn-text">Load AI Models</span>
         </button>
+        <button id="unloadModelsBtn" class="unload-models-btn hidden">
+          <span class="btn-icon">🗑️</span>
+          <span class="btn-text">Unload Models</span>
+        </button>
       </div>
     </div>
   </div>

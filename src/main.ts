@@ -163,7 +163,6 @@ loadModelsBtn.addEventListener('click', async () => {
     updateModelStatus('loading', 'Loading models...');
     if (btnText) btnText.textContent = 'Loading...';
 
-
     const width = parseInt(widthSlider.value);
     const height = parseInt(heightSlider.value);
 
@@ -173,13 +172,43 @@ loadModelsBtn.addEventListener('click', async () => {
 
     updateModelStatus('ready', 'Models loaded and ready');
     if (btnText) btnText.textContent = 'Models Loaded ✓';
-    loadModelsBtn.style.display = 'none'; // Hide the button once loaded
+    loadModelsBtn.style.display = 'none';
+    document.querySelector('#unloadModelsBtn')?.classList.remove('hidden');
     
   } catch (error) {
     console.error('Failed to load models:', error);
     updateModelStatus('error', 'Failed to load models');
     if (btnText) btnText.textContent = originalText;
     loadModelsBtn.disabled = false;
+  }
+});
+
+// Unload models button
+document.querySelector('#unloadModelsBtn')?.addEventListener('click', async () => {
+  const unloadBtn = document.querySelector('#unloadModelsBtn') as HTMLButtonElement;
+  if (!unloadBtn || unloadBtn.disabled) return;
+
+  try {
+    unloadBtn.disabled = true;
+    const btnText = unloadBtn.querySelector('.btn-text');
+    if (btnText) btnText.textContent = 'Unloading...';
+
+    updateModelStatus('loading', 'Unloading models...');
+    await imageGenerator.disposeTextToImage();
+
+    updateModelStatus('not-loaded', 'Models not loaded');
+    unloadBtn.classList.add('hidden');
+    loadModelsBtn.style.display = 'flex';
+    loadModelsBtn.disabled = false;
+    const loadBtnText = loadModelsBtn.querySelector('.btn-text');
+    if (loadBtnText) loadBtnText.textContent = 'Load AI Models';
+
+  } catch (error) {
+    console.error('Failed to unload models:', error);
+    updateModelStatus('error', 'Failed to unload models');
+    unloadBtn.disabled = false;
+    const btnText = unloadBtn.querySelector('.btn-text');
+    if (btnText) btnText.textContent = 'Unload Models';
   }
 });
 

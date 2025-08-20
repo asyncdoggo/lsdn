@@ -99,8 +99,10 @@ export class ModelManager {
   };
 
   constructor() {
-    // Configure ONNX Runtime
-    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+    // Configure ONNX Runtime to find WASM files
+    ort.env.wasm.wasmPaths = import.meta.env.DEV 
+      ? '/node_modules/onnxruntime-web/dist/' // Development path
+      : '/onnx/'; // Production path - copied files from node_modules
     ort.env.wasm.numThreads = 1;
     ort.env.logLevel = 'warning';
 
