@@ -25,10 +25,6 @@
     padding: 1rem;
   }
 
-  .pattern-grid {
-    max-height: 200px;
-  }
-
   .category-tabs {
     gap: 0.2rem;
   }
@@ -36,25 +32,6 @@
   .category-tab {
     padding: 0.4rem 0.6rem;
     font-size: 0.75rem;
-  }
-
-  .pattern-category {
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
-
-  .pattern-card {
-    padding: 0.75rem;
-  }
-
-  .pattern-preview {
-    width: 35px;
-    height: 35px;
-    font-size: 1.6rem;
-  }
-
-  .pattern-info h4 {
-    font-size: 0.8rem;
   }
 }
 
@@ -83,10 +60,6 @@
     padding: 0.75rem;
   }
 
-  .pattern-section h3 {
-    font-size: 1rem;
-  }
-
   .resolution-buttons {
     flex-direction: column;
     gap: 0.5rem;
@@ -109,52 +82,8 @@
     font-size: 1rem;
   }
 
-  .category-tabs {
-    grid-template-columns: 1fr 1fr;
-    display: grid;
-    gap: 0.3rem;
-  }
-
-  .category-tab {
-    padding: 0.5rem 0.4rem;
-    font-size: 0.7rem;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
   .tab-icon {
     font-size: 0.9rem;
-  }
-
-  .pattern-category {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
-
-  .pattern-card {
-    padding: 0.75rem;
-    flex-direction: row;
-    text-align: left;
-    gap: 0.75rem;
-  }
-
-  .pattern-preview {
-    width: 32px;
-    height: 32px;
-    font-size: 1.4rem;
-    flex-shrink: 0;
-  }
-
-  .pattern-info {
-    flex: 1;
-  }
-
-  .pattern-info h4 {
-    font-size: 0.85rem;
-  }
-
-  .pattern-grid {
-    max-height: 180px;
   }
 }
 
@@ -186,16 +115,6 @@
   }
 
   .tab-icon {
-    font-size: 0.8rem;
-  }
-
-  .pattern-preview {
-    width: 28px;
-    height: 28px;
-    font-size: 1.2rem;
-  }
-
-  .pattern-info h4 {
     font-size: 0.8rem;
   }
 
@@ -234,7 +153,4 @@
     order: 2;
   }
 
-  .pattern-grid {
-    max-height: 150px;
-  }
 }

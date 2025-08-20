@@ -1,53 +1,100 @@
-# Completely vibe coded hell mess of a image pattern generator with text to image (using WebGPU)
+# LSDN
 
-> I am just going to let copilot do the work of explaining what its made
+URL: [https://lsdn.netlify.app](https://lsdn.netlify.app)
 
-A cutting-edge web application that transforms your text prompts into stunning high-quality images using state-of-the-art diffusion models running directly in your browser with WebGPU acceleration.
+A modern, browser-based implementation of Stable Diffusion that runs entirely client-side using WebGPU acceleration.
 
+GPU is mandatory. Maybe NVIDIA only?
 
-## 🎨 Pattern Generation Mode
-Classic algorithmic pattern generation:
-- **Pure Noise**: Random black/white pixel patterns
-- **Perlin Noise**: Smooth, organic cloud-like textures
-- **Wave Patterns**: Mathematical wave interference
-- **TV Static**: Retro television noise simulation
-  
-<span style="display:inline-block; animation: pulse 1s infinite; font-weight:bold; color:#ff69b4;">✨ And a Lot More ✨</span>
+## Features
 
-<style>
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.4; }
-  100% { opacity: 1; }
-}
-</style>
+### Core Features
+- Runs completely in browser with WebGPU hardware acceleration
+- No servers or installations required
+- Real-time generation preview
 
-
-## 🎨 Text-to-Image Generation
-
-Transform any text description into beautiful, detailed images:
-
-- 🖼️ **High-Quality Output**: Generate crisp, detailed images from simple text prompts
-- ⚡ **Real-Time Generation**: Watch your images come to life step-by-step
-- 🎯 **Precise Control**: Fine-tune every aspect with advanced parameters
-- 🧠 **AI-Powered**: Uses cutting-edge diffusion model technology
-- 💻 **Browser-Native**: No server required - everything runs locally with WebGPU
+### Generation Options
+- Text-to-Image generation
+- Multiple sampling methods:
+  - Euler (Ancestral)
+  - Heun
+  - DPM++ 2M SDE
+  - DDPM
+  - LMS Karras
+  - More to come
 
 
-### ⚠️ Text to image NOT SUPPORTED:
-- Integrated graphics (Basic ass poor hardware)
-- Old GPUs (Old ass Nvidia GTX 10-series and older)
-- Mobile devices (Don't even think about it)
-- Budget laptops without dedicated graphics (Imagine being so poor)
+## Requirements
 
-**If you don't have a proper GPU, stick to the pattern generation mode.**
+- Chrome/Edge Canary or Chrome 113+ with WebGPU enabled
+- Dedicated GPU with 4GB+ VRAM (NVIDIA only?)
+- WebGPU-compatible graphics drivers
+- Operating System: Windows/Linux/macOS with WebGPU support
+
+I have tested this on a NVIDIA GTX 1650 4GB VRAM.
+
+## Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/asyncdoggo/LSDN.git
+cd LSDN
+```
+
+2. Install dependencies
+```bash
+npm install
+```
+
+3. Start the development server
+```bash
+npm run dev
+```
+
+4. Open in a WebGPU-enabled browser: http://localhost:5173
 
 
-### 🤖 Text-to-Image Mode
-<!-- Write about how we put stable diffusion -->
-Runs Stable Diffusion in the browser, using ONNX Runtime Web [https://onnxruntime.ai/].
+## Models:
+I have only converted the following models to onnx, none of them are mine:
+- [Small Stable Diffusion v0](https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web) 
+  - A lightweight version of Stable Diffusion
+- [animeanything_v10-onnx](https://huggingface.co/subpixel/animeanything_v10-onnx) 
+  - A model for generating anime-style images
+- [Typhoon-SD15-V2-onnx](https://huggingface.co/subpixel/Typhoon-SD15-V2-onnx) 
+  - A model for generating more realistic-styled images
 
-### Prerequisites
-1. **Check GPU Support**: Your browser must support WebGPU
-2. **Hardware Check**: Ensure you have a dedicated (Nvidia only?) GPU with 4GB+ VRAM
-3. **Browser**: Check [chrome://gpu](chrome://gpu)
+## Stuff
+- Ensure hardware acceleration is enabled in your browser. Check [chrome://gpu](chrome://gpu)
+- Use latest Chrome or whatever browser you prefer that has WebGPU support
+- Adjust tile size based on available GPU memory
+- Recommended step count: 20-30 for optimal speed/quality
+- Lower resolutions provide faster generation
+- Monitor VRAM usage in browser task manager
+
+## Development
+
+Pull requests and contributions are welcome. Although this is just a hobby project, I appreciate any help or feedback.
+
+### Building from Source
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+- Runs stable diffusion models using the onnx runtime [onnxruntime-web](https://github.com/microsoft/onnxruntime)
+
+## Support and Issues
+
+For bug reports and feature requests, please use [GitHub Issues](https://github.com/asyncdoggo/lsdn/issues).

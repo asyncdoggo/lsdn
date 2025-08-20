@@ -1,5 +1,5 @@
 export const textToImageSectionTemplate = `
-  <div class="text-to-image-section hidden">
+  <div class="text-to-image-section">
     <h3>Text Prompt</h3>
     <div class="prompt-controls">
       <textarea 
@@ -69,8 +69,8 @@ export const textToImageSectionTemplate = `
             <label for="modelSelect">Model:</label>
             <select id="modelSelect">
             <option value="subpixel/small-stable-diffusion-v0-onnx-ort-web">Small Stable Diffusion V0</option>
-            <option value="subpixel/Typhoon-SD15-V2-onnx">Typhoon SD (better, larger)</option>
-            <option value="subpixel/animeanything_v10-onnx">Anime model</option>
+            <option value="subpixel/Typhoon-SD15-V2-onnx">Typhoon SD (realistic)</option>
+            <option value="subpixel/animeanything_v10-onnx">Anythingv10 (Anime)</option>
             </select>
           </div>
         <div class="status-indicator" id="modelStatus">

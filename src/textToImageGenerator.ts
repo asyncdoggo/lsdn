@@ -409,7 +409,8 @@ export class TextToImageGenerator {
 
     } catch (error) {
       console.error('Image generation failed:', error);
-      throw new Error(`Generation failed: ${error}`);
+      onProgress?.('Error', 1.0);
+      throw error;
     }
   }
 

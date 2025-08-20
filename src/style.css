@@ -2,7 +2,6 @@
 @import './styles/base.css';
 @import './styles/layout.css';
 @import './styles/controls.css';
-@import './styles/patterns.css';
 @import './styles/responsive.css';
 
 /* Canvas specific styles that aren't covered in other modules */
