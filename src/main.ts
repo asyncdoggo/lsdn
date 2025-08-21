@@ -3,10 +3,12 @@ import { TextToImageGenerator } from './textToImageGenerator'
 import type { SchedulerType } from './schedulers'
 import { appTemplate } from './templates'
 import { setBaseUrl } from './core/modelManager'
+import { History } from './utils/history'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = appTemplate
 
 const generator = new TextToImageGenerator()
+const history = History.getInstance();
 
 // Get elements
 const canvas = document.querySelector<HTMLCanvasElement>('#imageCanvas')!
@@ -15,6 +17,79 @@ const stopBtn = document.querySelector<HTMLButtonElement>('#stop')!
 const downloadBtn = document.querySelector<HTMLButtonElement>('#download')!
 const statusSection = document.querySelector('.status-section') as HTMLDivElement;
 const loadingText = document.querySelector('.loading-text') as HTMLParagraphElement;
+const historySelect = document.querySelector<HTMLSelectElement>('#history')!;
+
+// Initialize history dropdown
+function updateHistoryDropdown() {
+  const entries = history.getEntries();
+  historySelect.innerHTML = '<option value="">History</option>';
+  
+  entries.forEach(entry => {
+    const option = document.createElement('option');
+    option.value = entry.id;
+    option.textContent = `${entry.options.prompt.slice(0, 30)}... (${new Date(entry.timestamp).toLocaleTimeString()})`;
+    historySelect.appendChild(option);
+  });
+}
+
+// Load history when a selection is made
+historySelect.addEventListener('change', () => {
+  const selectedId = historySelect.value;
+  if (!selectedId) return;
+
+  const entry = history.getEntry(selectedId);
+  if (!entry) return;
+
+  // Restore all settings from history
+  promptInput.value = entry.options.prompt;
+  negativePromptInput.value = entry.options.negativePrompt || '';
+  stepsSlider.value = entry.options.steps.toString();
+  stepsValue.textContent = entry.options.steps.toString();
+  guidanceSlider.value = entry.options.guidance.toString();
+  guidanceValue.textContent = entry.options.guidance.toString();
+  schedulerSelect.value = entry.options.scheduler || 'euler-karras';
+  seedInput.value = entry.options.seed?.toString() || '';
+  tiledVAECheck.checked = entry.options.useTiledVAE || false;
+  lowMemoryCheck.checked = entry.options.lowMemoryMode || false;
+  widthSlider.value = entry.options.width.toString();
+  widthValue.textContent = entry.options.width.toString();
+  heightSlider.value = entry.options.height.toString();
+  heightValue.textContent = entry.options.height.toString();
+  
+  if (entry.options.tileSize) {
+    tileSizeSlider.value = entry.options.tileSize.toString();
+    tileSizeValue.textContent = entry.options.tileSize.toString();
+  }
+  
+  tileSizeGroup.style.display = tiledVAECheck.checked ? 'block' : 'none';
+
+  // Set model and update base URL
+  if (entry.options.model) {
+    modelSelect.value = entry.options.model;
+    setBaseUrl(entry.options.model);
+  }
+
+  // Restore preview image if available
+  if (entry.previewUrl) {
+    const img = new Image();
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        canvas.width = entry.options.width;
+        canvas.height = entry.options.height;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Enable download button since we have an image
+        downloadBtn.disabled = false;
+      }
+    };
+    img.src = entry.previewUrl;
+  }
+
+  // Reset selection
+  historySelect.value = '';
+});
 
 // Text-to-image elements
 const promptInput = document.querySelector<HTMLTextAreaElement>('#promptInput')!;
@@ -224,8 +299,13 @@ generateBtn.addEventListener('click', async () => {
       seed: seedInput.value ? parseInt(seedInput.value) : undefined,
       useTiledVAE: tiledVAECheck.checked,
       lowMemoryMode: lowMemoryCheck.checked,
-      tileSize: parseInt(tileSizeSlider.value)
+      tileSize: parseInt(tileSizeSlider.value),
+      model: modelSelect.value
     };
+
+    // Create history entry before starting generation
+    const historyId = history.addEntry(options);
+    updateHistoryDropdown();
     
     const imageData = await generator.generateImage(
       options,
@@ -261,6 +341,11 @@ generateBtn.addEventListener('click', async () => {
       canvas.width = imageData.width;
       canvas.height = imageData.height;
       ctx.putImageData(imageData, 0, 0);
+
+      // Update history entry with preview
+      const previewUrl = canvas.toDataURL('image/png');
+      history.updateEntry(historyId, { previewUrl });
+      updateHistoryDropdown();
     }
     
     downloadBtn.disabled = false;
@@ -301,4 +386,5 @@ downloadBtn.addEventListener('click', () => {
   link.click();
 });
 
-
+// Initialize history dropdown
+updateHistoryDropdown();

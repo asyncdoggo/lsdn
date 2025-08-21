@@ -248,11 +248,50 @@
 /* Action Section */
 .action-section {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: 0.75rem;
   margin-top: auto;
   padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.history-controls {
+  width: 100%;
+}
+
+.history-select {
+  width: 100%;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.history-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.history-select:focus {
+  outline: none;
+  border-color: #8b5cf6;
+}
+
+.history-select option {
+  background: rgba(30, 30, 30, 0.95);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0.5rem;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  width: 100%;
 }
 
 .generate-btn,
