@@ -87,3 +87,9 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+.resolution-sliders{
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

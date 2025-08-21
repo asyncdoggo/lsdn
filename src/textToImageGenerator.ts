@@ -13,7 +13,7 @@ export interface TextToImageOptions {
   height: number;
   steps: number;
   guidance: number;
-  seed?: number;
+  seed: number;
   scheduler?: SchedulerType;
   useTiledVAE?: boolean;  // Use tiled VAE to reduce memory usage
   lowMemoryMode?: boolean; // Enable low memory mode (unloads unet when decoding)
@@ -133,15 +133,7 @@ export class TextToImageGenerator {
     this.tensorCache = {};
 
     // Handle seed generation and setting
-    let actualSeed: number;
-    if (seed !== undefined) {
-      actualSeed = seed;
-      this.noiseGenerator.setSeed(seed);
-    } else {
-      // Generate a proper random seed (32-bit integer)
-      actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
-      this.noiseGenerator.setSeed(actualSeed);
-    }
+    this.noiseGenerator.setSeed(seed);
 
     try {
       const negativePromptText = options.negativePrompt || "";
@@ -150,7 +142,7 @@ export class TextToImageGenerator {
         steps,
         guidance,
         scheduler: scheduler,
-        seed: actualSeed,
+        seed: seed,
         prompt: prompt.slice(0, 50) + (prompt.length > 50 ? '...' : ''),
         negativePrompt: negativePromptText ? negativePromptText.slice(0, 30) + '...' : 'none'
       });

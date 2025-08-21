@@ -20,8 +20,8 @@ const loadingText = document.querySelector('.loading-text') as HTMLParagraphElem
 const historySelect = document.querySelector<HTMLSelectElement>('#history')!;
 
 // Initialize history dropdown
-function updateHistoryDropdown() {
-  const entries = history.getEntries();
+async function updateHistoryDropdown() {
+  const entries = await history.getEntries();
   historySelect.innerHTML = '<option value="">History</option>';
   
   entries.forEach(entry => {
@@ -33,11 +33,11 @@ function updateHistoryDropdown() {
 }
 
 // Load history when a selection is made
-historySelect.addEventListener('change', () => {
+historySelect.addEventListener('change', async () => {
   const selectedId = historySelect.value;
   if (!selectedId) return;
 
-  const entry = history.getEntry(selectedId);
+  const entry = await history.getEntry(selectedId);
   if (!entry) return;
 
   // Restore all settings from history
@@ -288,6 +288,13 @@ generateBtn.addEventListener('click', async () => {
     const width = parseInt(widthSlider.value);
     const height = parseInt(heightSlider.value);
 
+    // Handle seed generation and setting
+    let actualSeed: number = parseInt(seedInput.value);
+    if (isNaN(actualSeed)) {
+      actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
+    }
+    seedInput.value = actualSeed.toString();
+
     const options = {
       prompt,
       height,
@@ -296,15 +303,17 @@ generateBtn.addEventListener('click', async () => {
       steps: parseInt(stepsSlider.value),
       guidance: parseFloat(guidanceSlider.value),
       scheduler: schedulerSelect.value as SchedulerType,
-      seed: seedInput.value ? parseInt(seedInput.value) : undefined,
+      seed: actualSeed,
       useTiledVAE: tiledVAECheck.checked,
       lowMemoryMode: lowMemoryCheck.checked,
       tileSize: parseInt(tileSizeSlider.value),
       model: modelSelect.value
     };
 
+    actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
+
     // Create history entry before starting generation
-    const historyId = history.addEntry(options);
+    const historyId = await history.addEntry(options);
     updateHistoryDropdown();
     
     const imageData = await generator.generateImage(

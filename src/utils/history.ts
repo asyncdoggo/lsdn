@@ -7,15 +7,48 @@ export interface HistoryEntry {
   previewUrl?: string;
 }
 
+const DB_NAME = 'TextToImageDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'historyEntries';
+
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = (_event) => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function withStore<T>(
+  mode: IDBTransactionMode,
+  callback: (store: IDBObjectStore) => Promise<T>
+): Promise<T> {
+  return openDatabase().then(db => {
+    return new Promise<T>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, mode);
+      const store = transaction.objectStore(STORE_NAME);
+      callback(store)
+        .then(resolve)
+        .catch(reject);
+
+      transaction.onerror = () => reject(transaction.error);
+    });
+  });
+}
+
 export class History {
   private static instance: History;
-  private entries: HistoryEntry[] = [];
   private readonly maxEntries = 10;
-  private readonly storageKey = 'textToImageHistory';
 
-  private constructor() {
-    this.loadFromStorage();
-  }
+  private constructor() {}
 
   static getInstance(): History {
     if (!History.instance) {
@@ -24,26 +57,7 @@ export class History {
     return History.instance;
   }
 
-  private loadFromStorage() {
-    try {
-      const stored = localStorage.getItem(this.storageKey);
-      if (stored) {
-        this.entries = JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load history:', error);
-    }
-  }
-
-  private saveToStorage() {
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.entries));
-    } catch (error) {
-      console.error('Failed to save history:', error);
-    }
-  }
-
-  addEntry(options: TextToImageOptions & { model: string }): string {
+  async addEntry(options: TextToImageOptions & { model: string }): Promise<string> {
     const id = crypto.randomUUID();
     const entry: HistoryEntry = {
       id,
@@ -52,37 +66,73 @@ export class History {
       previewUrl: undefined
     };
 
-    this.entries.unshift(entry);
-    if (this.entries.length > this.maxEntries) {
-      this.entries.pop();
-    }
+    const entries = await this.getEntries();
+    entries.unshift(entry);
 
-    this.saveToStorage();
+    // Enforce maxEntries
+    const trimmed = entries.slice(0, this.maxEntries);
+
+    await withStore('readwrite', async (store) => {
+      for (const e of trimmed) {
+        store.put(e);
+      }
+      // Delete extras from DB
+      for (const e of entries.slice(this.maxEntries)) {
+        store.delete(e.id);
+      }
+    });
+
     return id;
   }
 
-  updateEntry(id: string, updates: Partial<HistoryEntry>): void {
-    const entryIndex = this.entries.findIndex(entry => entry.id === id);
-    if (entryIndex === -1) return;
+  async updateEntry(id: string, updates: Partial<HistoryEntry>): Promise<void> {
+    await withStore('readwrite', async (store) => {
+      return new Promise<void>((resolve, reject) => {
+        const getRequest = store.get(id);
+        getRequest.onsuccess = () => {
+          const existing = getRequest.result;
+          if (!existing) return resolve();
 
-    this.entries[entryIndex] = {
-      ...this.entries[entryIndex],
-      ...updates
-    };
-
-    this.saveToStorage();
+          const updated = { ...existing, ...updates };
+          const putRequest = store.put(updated);
+          putRequest.onsuccess = () => resolve();
+          putRequest.onerror = () => reject(putRequest.error);
+        };
+        getRequest.onerror = () => reject(getRequest.error);
+      });
+    });
   }
 
-  getEntries(): HistoryEntry[] {
-    return [...this.entries];
+  async getEntries(): Promise<HistoryEntry[]> {
+    return withStore('readonly', (store) => {
+      return new Promise<HistoryEntry[]>((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => {
+          const sorted = request.result.sort((a, b) => b.timestamp - a.timestamp);
+          resolve(sorted);
+        };
+        request.onerror = () => reject(request.error);
+      });
+    });
   }
 
-  getEntry(id: string): HistoryEntry | undefined {
-    return this.entries.find(entry => entry.id === id);
+  async getEntry(id: string): Promise<HistoryEntry | undefined> {
+    return withStore('readonly', (store) => {
+      return new Promise<HistoryEntry | undefined>((resolve, reject) => {
+        const request = store.get(id);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    });
   }
 
-  clear(): void {
-    this.entries = [];
-    this.saveToStorage();
+  async clear(): Promise<void> {
+    return withStore('readwrite', (store) => {
+      return new Promise<void>((resolve, reject) => {
+        const request = store.clear();
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    });
   }
 }
