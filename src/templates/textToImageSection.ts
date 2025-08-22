@@ -2,12 +2,14 @@ export const textToImageSectionTemplate = `
   <div class="text-to-image-section">
     <h3>Text Prompt</h3>
     <div class="prompt-controls">
+    <label for="promptInput">Positive Prompt (Things you want)</label>
       <textarea 
         id="promptInput" 
         placeholder="Enter your text prompt here... (e.g., 'a beautiful sunset over mountains')"
         rows="3"
         maxlength="500"
       ></textarea>
+      <label for="negativePromptInput">Negative Prompt (Optional, Things you don't want)</label>
       <textarea 
         id="negativePromptInput" 
         placeholder="blurry, low quality, distorted, noise, artifacts, oversaturated"
@@ -16,11 +18,11 @@ export const textToImageSectionTemplate = `
       ></textarea>
       <div class="ai-settings">
         <div class="setting-group">
-          <label for="stepsSlider">Steps: <span id="stepsValue">20</span></label>
+          <label title="Number of denoising steps">Steps: <span id="stepsValue">20</span></label>
           <input type="range" id="stepsSlider" min="1" max="50" value="20" />
         </div>
         <div class="setting-group">
-          <label for="guidanceSlider">Guidance: <span id="guidanceValue">7.5</span></label>
+          <label title="How strongly the AI should follow the prompt">Guidance: <span id="guidanceValue">7.5</span></label>
           <input type="range" id="guidanceSlider" min="1" max="15" step="0.5" value="7.5" />
         </div>
         <div class="setting-group">

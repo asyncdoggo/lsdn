@@ -112,6 +112,7 @@ const widthSlider = document.querySelector<HTMLInputElement>('#widthSlider')!;
 const heightSlider = document.querySelector<HTMLInputElement>('#heightSlider')!;
 const widthValue = document.querySelector<HTMLElement>('#widthValue')!;
 const heightValue = document.querySelector<HTMLElement>('#heightValue')!;
+const clearHistory = document.querySelector<HTMLButtonElement>('#clearHistory')!;
 
 // Resolution slider events
 widthSlider.addEventListener('input', () => {
@@ -162,6 +163,14 @@ tiledVAECheck.addEventListener('change', () => {
 // Tile size slider
 tileSizeSlider.addEventListener('input', () => {
   tileSizeValue.textContent = tileSizeSlider.value;
+});
+
+
+clearHistory.addEventListener('click', async () => {
+  historySelect.options.length = 0; // Clear dropdown options
+  historySelect.value = 'History';
+  history.clear();
+  
 });
 
 // Load models button

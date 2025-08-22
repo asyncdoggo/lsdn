@@ -4,6 +4,9 @@ export const actionSectionTemplate = `
       <select id="history" class="history-select">
         <option value="">History</option>
       </select>
+      <button id="clearHistory" title="Clear History" class="clear-history-btn" type="button">
+        <span class="btn-icon">🗑️</span>
+      </button>
     </div>
     <div class="action-buttons">
       <button id="generate" class="generate-btn" type="button">
