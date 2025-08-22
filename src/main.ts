@@ -113,6 +113,8 @@ const heightSlider = document.querySelector<HTMLInputElement>('#heightSlider')!;
 const widthValue = document.querySelector<HTMLElement>('#widthValue')!;
 const heightValue = document.querySelector<HTMLElement>('#heightValue')!;
 const clearHistory = document.querySelector<HTMLButtonElement>('#clearHistory')!;
+const randomizeSeed = document.querySelector<HTMLInputElement>('#randomizeSeed')!;
+
 
 // Resolution slider events
 widthSlider.addEventListener('input', () => {
@@ -170,8 +172,8 @@ clearHistory.addEventListener('click', async () => {
   historySelect.options.length = 0; // Clear dropdown options
   historySelect.value = 'History';
   history.clear();
-  
 });
+
 
 // Load models button
 loadModelsBtn.addEventListener('click', async () => {
@@ -296,9 +298,13 @@ generateBtn.addEventListener('click', async () => {
 
     const width = parseInt(widthSlider.value);
     const height = parseInt(heightSlider.value);
+    let actualSeed: number = parseInt(seedInput.value);
 
     // Handle seed generation and setting
-    let actualSeed: number = parseInt(seedInput.value);
+    if (randomizeSeed.checked) {
+      actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
+    }
+
     if (isNaN(actualSeed)) {
       actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
     }

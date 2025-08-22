@@ -46,7 +46,11 @@ export const textToImageSectionTemplate = `
           </select>
         </div>
         <div class="setting-group">
-          <label for="seedInput">Seed (optional):</label>
+          <label id="seedLabel" for="seedInput">Seed (optional):</label>
+          <div class="randomize-seed">
+            <label for="randomizeSeed">Randomize?</label>
+            <input type="checkbox" checked id="randomizeSeed" />
+          </div>
           <input type="number" id="seedInput" placeholder="Random" min="0" max="999999" />
         </div>
         <div class="setting-group">

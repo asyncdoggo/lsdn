@@ -307,7 +307,17 @@
   gap: 0.5rem;
 }
 
+#seedLabel {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
 
+.randomize-seed {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
 
 .action-buttons {
   display: flex;
