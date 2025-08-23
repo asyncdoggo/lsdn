@@ -126,8 +126,8 @@ window.addEventListener('unhandledrejection', event => {
   if (isGpuError) {
     console.error('GPU/WebGPU error detected:', reason);
 
-    // TODO: Replace this with your actual UI or notification logic
     alert("There was a GPU error while running the model. Please reload the page and try again.");
+    window.location.reload();
 
   } else {
     console.error('Unhandled rejection caught:', reason);
@@ -144,13 +144,6 @@ heightSlider.addEventListener('input', () => {
   heightValue.textContent = heightSlider.value;
 });
 
-// Model select dropdown
-modelSelect.addEventListener('change', () => {
-  const selectedModel = modelSelect.value;
-  setBaseUrl(selectedModel);
-  console.log('Selected model:', selectedModel);
-});
-
 
 // Resolution slider events
 widthSlider.addEventListener('input', () => {
@@ -165,6 +158,7 @@ modelSelect.addEventListener('change', () => {
   const selectedModel = modelSelect.value;
   setBaseUrl(selectedModel);
   console.log('Selected model:', selectedModel);
+
 });
 
 // Text-to-image slider updates

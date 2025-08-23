@@ -188,7 +188,7 @@ export class TextToImageGenerator {
 
       if (needsNewModels || !models.unet) {
         if (onProgress) onProgress('Loading models for resolution', 0.25);
-        await this.modelManager.reloadUnet(latentHeight, latentWidth, onProgress);
+        await this.modelManager.reload(latentHeight, latentWidth, onProgress);
       }
 
 
