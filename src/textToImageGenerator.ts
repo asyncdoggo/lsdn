@@ -257,11 +257,17 @@ export class TextToImageGenerator {
         }
 
         // Single batched UNet call instead of two separate calls
-        const batchedUnetResult = await models.unet.sess.run({
-          sample: batchedSample,
-          timestep: batchedTimestepTensor,
-          encoder_hidden_states: batchedEmbeddings
-        });
+        let batchedUnetResult: Record<string, ort.Tensor>;
+        try{
+          batchedUnetResult = await models.unet.sess.run({
+            sample: batchedSample,
+            timestep: batchedTimestepTensor,
+            encoder_hidden_states: batchedEmbeddings
+          });
+        }catch(error){
+          console.error('Error occurred during UNet inference:', error);
+          throw error;
+        }
         this.performanceMonitor.endStage();
 
         const batchedOutput = batchedUnetResult.out_sample as ort.Tensor;

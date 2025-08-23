@@ -115,6 +115,25 @@ const heightValue = document.querySelector<HTMLElement>('#heightValue')!;
 const clearHistory = document.querySelector<HTMLButtonElement>('#clearHistory')!;
 const randomizeSeed = document.querySelector<HTMLInputElement>('#randomizeSeed')!;
 
+window.addEventListener('unhandledrejection', event => {
+  const reason = event.reason;
+
+  // Detect GPU/WebGPU related errors
+  const isGpuError = reason instanceof DOMException &&
+    reason.name === 'AbortError' &&
+    /mapAsync|GPUBuffer|GPU/i.test(reason.message);
+
+  if (isGpuError) {
+    console.error('GPU/WebGPU error detected:', reason);
+
+    // TODO: Replace this with your actual UI or notification logic
+    alert("There was a GPU error while running the model. Please reload the page and try again.");
+
+  } else {
+    console.error('Unhandled rejection caught:', reason);
+  }
+});
+
 
 // Resolution slider events
 widthSlider.addEventListener('input', () => {
