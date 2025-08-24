@@ -105,8 +105,6 @@ const tileSizeGroup = document.querySelector<HTMLElement>('#tileSizeGroup')!;
 const stepsValue = document.querySelector('#stepsValue')!;
 const guidanceValue = document.querySelector('#guidanceValue')!;
 const tileSizeValue = document.querySelector('#tileSizeValue')!;
-const modelStatus = document.querySelector('#modelStatus')!;
-const loadModelsBtn = document.querySelector<HTMLButtonElement>('#loadModelsBtn')!;
 const modelSelect = document.querySelector<HTMLSelectElement>('#modelSelect')!;
 const widthSlider = document.querySelector<HTMLInputElement>('#widthSlider')!;
 const heightSlider = document.querySelector<HTMLInputElement>('#heightSlider')!;
@@ -188,81 +186,6 @@ clearHistory.addEventListener('click', async () => {
 });
 
 
-// Load models button
-loadModelsBtn.addEventListener('click', async () => {
-  if (!("gpu" in navigator)) {
-    alert('GPU is needed to run. Please use a compatible browser with WebGPU support.');
-    return;
-  }
-
-  if (loadModelsBtn.disabled) return;
-  
-  loadModelsBtn.disabled = true;
-  const originalText = loadModelsBtn.querySelector('.btn-text')?.textContent || 'Load AI Models';
-  const btnText = loadModelsBtn.querySelector('.btn-text');
-  
-  try {
-    updateModelStatus('loading', 'Loading models...');
-    if (btnText) btnText.textContent = 'Loading...';
-
-    const width = parseInt(widthSlider.value);
-    const height = parseInt(heightSlider.value);
-
-    await generator.loadModels((stage: string, progress: number) => {
-      updateModelStatus('loading', `${stage} (${Math.round(progress * 100)}%)`);
-    }, { height, width });
-
-    updateModelStatus('ready', 'Models loaded and ready');
-    if (btnText) btnText.textContent = 'Models Loaded ✓';
-    loadModelsBtn.style.display = 'none';
-    document.querySelector('#unloadModelsBtn')?.classList.remove('hidden');
-    
-  } catch (error) {
-    console.error('Failed to load models:', error);
-    updateModelStatus('error', 'Failed to load models');
-    if (btnText) btnText.textContent = originalText;
-    loadModelsBtn.disabled = false;
-  }
-});
-
-// Unload models button
-document.querySelector('#unloadModelsBtn')?.addEventListener('click', async () => {
-  const unloadBtn = document.querySelector('#unloadModelsBtn') as HTMLButtonElement;
-  if (!unloadBtn || unloadBtn.disabled) return;
-
-  try {
-    unloadBtn.disabled = true;
-    const btnText = unloadBtn.querySelector('.btn-text');
-    if (btnText) btnText.textContent = 'Unloading...';
-
-    updateModelStatus('loading', 'Unloading models...');
-    await generator.dispose();
-
-    updateModelStatus('not-loaded', 'Models not loaded');
-    unloadBtn.classList.add('hidden');
-    loadModelsBtn.style.display = 'flex';
-    loadModelsBtn.disabled = false;
-    const loadBtnText = loadModelsBtn.querySelector('.btn-text');
-    if (loadBtnText) loadBtnText.textContent = 'Load AI Models';
-
-  } catch (error) {
-    console.error('Failed to unload models:', error);
-    updateModelStatus('error', 'Failed to unload models');
-    unloadBtn.disabled = false;
-    const btnText = unloadBtn.querySelector('.btn-text');
-    if (btnText) btnText.textContent = 'Unload Models';
-  }
-});
-
-// Model status update function
-function updateModelStatus(status: 'loading' | 'ready' | 'error' | 'not-loaded', message: string) {
-  const statusDot = modelStatus.querySelector('.status-dot') as HTMLElement;
-  const statusText = modelStatus.querySelector('.status-text') as HTMLElement;
-  
-  statusDot.className = `status-dot status-${status}`;
-  statusText.textContent = message;
-}
-
 // Text-to-image slider updates
 stepsSlider.addEventListener('input', () => {
   stepsValue.textContent = stepsSlider.value;
@@ -284,7 +207,13 @@ tileSizeSlider.addEventListener('input', () => {
 
 // Generate button
 generateBtn.addEventListener('click', async () => {
+  if (!("gpu" in navigator)) {
+    alert('GPU is needed to run. Please use a compatible browser with WebGPU support.');
+    return;
+  }
+  
   if (generateBtn.disabled) return; // Prevent double-clicks
+
   
   generateBtn.disabled = true;
   downloadBtn.disabled = true;
@@ -304,10 +233,10 @@ generateBtn.addEventListener('click', async () => {
       return;
     }
     
-    if (!generator.modelsLoaded) {
-      alert('AI models are not loaded. Please click "Load AI Models" first.');
-      return;
-    }
+    // if (!generator.modelsLoaded) {
+    //   alert('AI models are not loaded. Please click "Load AI Models" first.');
+    //   return;
+    // }
 
     const width = parseInt(widthSlider.value);
     const height = parseInt(heightSlider.value);

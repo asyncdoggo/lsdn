@@ -86,12 +86,6 @@ export class TextToImageGenerator {
     this.isCancelled = false;
   }
 
-  /**
-   * Load models
-   */
-  async loadModels(onProgress: (stage: string, progress: number) => void, resolution: { height: number; width: number }): Promise<void> {
-    return this.modelManager.loadModels(onProgress, resolution);
-  }
 
   /**
    * Generate image from text prompt
@@ -104,9 +98,6 @@ export class TextToImageGenerator {
     const startTime = performance.now();
     this.performanceMonitor.startSession();
 
-    if (!this.modelManager.modelsLoaded) {
-      throw new Error('Models not loaded. Call loadModels() first.');
-    }
 
     // Reset cancellation flag at the start
     this.resetCancellation();
@@ -123,6 +114,8 @@ export class TextToImageGenerator {
       tileSize = 256,
       lowMemoryMode = true
     } = options;
+
+    await this.modelManager.loadModels(onProgress!, {height, width});
     
     this.setScheduler(scheduler);
 
@@ -182,15 +175,6 @@ export class TextToImageGenerator {
       const latentShape = [1, 4, latentHeight, latentWidth];
       const latentData = this.noiseGenerator.generateRandomLatents(latentShape, 1.0);
       let latent = new ort.Tensor('float16', latentData, latentShape);
-
-      // Check if we need to recreate models for this resolution
-      const needsNewModels = this.modelManager.needsNewModels(latentHeight, latentWidth);
-
-      if (needsNewModels || !models.unet) {
-        if (onProgress) onProgress('Loading models for resolution', 0.25);
-        await this.modelManager.reload(latentHeight, latentWidth, onProgress);
-      }
-
 
       if (onProgress) onProgress('Running UNet denoising', 0.3);
 

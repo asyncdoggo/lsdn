@@ -79,18 +79,6 @@ export const textToImageSectionTemplate = `
             <option value="subpixel/animeanything_v10-onnx">Anythingv10 (Anime)</option>
             </select>
           </div>
-        <div class="status-indicator" id="modelStatus">
-          <span class="status-dot"></span>
-          <span class="status-text">Models not loaded</span>
-        </div>
-        <button id="loadModelsBtn" class="load-models-btn">
-          <span class="btn-icon">📥</span>
-          <span class="btn-text">Load AI Models</span>
-        </button>
-        <button id="unloadModelsBtn" class="unload-models-btn hidden">
-          <span class="btn-icon">🗑️</span>
-          <span class="btn-text">Unload Models</span>
-        </button>
       </div>
     </div>
   </div>

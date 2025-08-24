@@ -128,10 +128,6 @@ export class ModelManager {
    * Create UNet session with specific dimensions
    */
   async createUNetSession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
-
-    this.modelConfig.unet.url = BASE_URL + '/unet/model.onnx';
-    this.modelConfig.unet.weightsUrl = BASE_URL + '/unet/weights.pb';
-
     const unetBytes = await this.fetchAndCache(this.modelConfig.unet.url, onProgress, 'UNet Model');
     let weightsBytes = new ArrayBuffer(0);
 
@@ -158,8 +154,6 @@ export class ModelManager {
   }
 
   async createTextEncoderSession(onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
-    this.modelConfig.textEncoder.url = BASE_URL + '/text_encoder/model.onnx';
-
     const textEncoderBytes = await this.fetchAndCache(this.modelConfig.textEncoder.url, onProgress, 'Text Encoder');
 
     const textEncoderOptions = {
@@ -269,21 +263,23 @@ export class ModelManager {
    * Load models, VAE is loaded on demand
    */
   async loadModels(onProgress: (stage: string, progress: number) => void, resolution: { height: number; width: number }): Promise<void> {
+
+    const baseUrlChanged = this.modelConfig.unet.url !== BASE_URL + '/unet/model.onnx';
+  
     this.modelConfig.unet.url = BASE_URL + '/unet/model.onnx';
     this.modelConfig.unet.weightsUrl = BASE_URL + '/unet/weights.pb';
     this.modelConfig.vaeDecoder.url = BASE_URL + '/vae_decoder/model.onnx';
     this.modelConfig.textEncoder.url = BASE_URL + '/text_encoder/model.onnx';
 
-    if (this.isLoaded) return;
-
     try {
-      if (onProgress) onProgress('Loading Text Encoder', 0.2);
-
-      // Load text encoder (this one doesn't depend on resolution)
-      const textEncoderBytes = await this.fetchAndCache(this.modelConfig.textEncoder.url, onProgress, 'Text Encoder');
-      this.models.textEncoder = {
-        sess: await ort.InferenceSession.create(textEncoderBytes, this.modelConfig.textEncoder.opt)
-      };
+    
+      if (!this.models.textEncoder?.sess || baseUrlChanged) {
+        // Load text encoder
+        if (onProgress) onProgress('Loading Text Encoder', 0.2);
+        this.models.textEncoder = {
+          sess: await this.createTextEncoderSession(onProgress)
+        };
+      }
 
       if (onProgress) onProgress('Loading Tokenizer', 0.4);
 
@@ -295,13 +291,18 @@ export class ModelManager {
       // Load UNet for default 512px resolution
       const [latentHeight, latentWidth] = this.getLatentDimensions(resolution.height, resolution.width);
 
-      this.models.unet = {
-        sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
-      };
+      const dimensionsChanged = this.currentLatentDimensions?.[0] !== latentHeight ||
+      this.currentLatentDimensions?.[1] !== latentWidth;
+
+
+      if (!this.models.unet?.sess || dimensionsChanged || baseUrlChanged) {
+        this.models.unet = {
+          sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
+        };
+      }
 
       this.currentLatentDimensions = [latentHeight, latentWidth];
 
-      this.isLoaded = true;
       if (onProgress) onProgress('Models Loaded', 1.0);
 
     } catch (error) {
@@ -310,51 +311,6 @@ export class ModelManager {
     }
   }
 
-  /**
-   * Check if we need to recreate models for a different resolution
-   */
-  needsNewModels(latentHeight: number, latentWidth: number): boolean {
-    // Check if UNet exists for the requested dimensions
-    const unetMissing = this.models.unet?.sess === undefined;
-
-    // Check if dimensions have changed
-    const dimensionsChanged = this.currentLatentDimensions?.[0] !== latentHeight ||
-      this.currentLatentDimensions?.[1] !== latentWidth;
-
-    // Check if model BASE_URL has changed
-    const baseUrlChanged = this.modelConfig.unet.url !== BASE_URL + '/unet/model.onnx';
-
-    const needsReload = unetMissing || dimensionsChanged || baseUrlChanged;
-
-    return needsReload;
-  }
-
-  /**
-   * Update models for new resolution
-   */
-  async reload(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<void> {
-
-    // Dispose existing UNet session if it exists
-    if (this.models.unet?.sess) {
-      await this.models.unet.sess.release();
-    }
-
-    // VAE decoder is loaded on-demand, so we don't need to dispose it here
-    // It will be created fresh when needed for the specific resolution
-
-    // Create new text encoder and UNet session with correct dimensions
-    this.models.textEncoder = {
-      sess: await this.createTextEncoderSession(onProgress)
-    };
-
-    this.models.unet = {
-      sess: await this.createUNetSession(latentHeight, latentWidth, onProgress)
-    };
-
-
-    // Store current dimensions
-    this.currentLatentDimensions = [latentHeight, latentWidth];
-  }
 
   /**
    * Get models (for external access)
