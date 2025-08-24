@@ -55,7 +55,7 @@ npm run dev
 
 
 ## Models:
-I have only converted the following models to onnx, none of them are mine:
+These are the models I have converted to onnx:
 - [Small Stable Diffusion v0](https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web) 
   - A lightweight version of Stable Diffusion
 - [animeanything_v10-onnx](https://huggingface.co/subpixel/animeanything_v10-onnx) 
@@ -70,6 +70,7 @@ I have only converted the following models to onnx, none of them are mine:
 - Recommended step count: 20-30 for optimal speed/quality
 - Lower resolutions provide faster generation
 - Monitor VRAM usage in browser task manager
+- At least one of width or height must be 512px because of some model constraints.
 
 ## Development
 

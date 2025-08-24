@@ -21,6 +21,9 @@ export interface TextToImageOptions {
 }
 
 export class TextToImageGenerator {
+  async clearCache() {
+    await this.modelManager.clearCache();
+  }
   private scheduler: BaseScheduler;
   private noiseGenerator: NoiseGenerator;
   private performanceMonitor = PerformanceMonitor.getInstance();

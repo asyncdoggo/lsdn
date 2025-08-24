@@ -112,6 +112,7 @@ const widthValue = document.querySelector<HTMLElement>('#widthValue')!;
 const heightValue = document.querySelector<HTMLElement>('#heightValue')!;
 const clearHistory = document.querySelector<HTMLButtonElement>('#clearHistory')!;
 const randomizeSeed = document.querySelector<HTMLInputElement>('#randomizeSeed')!;
+const clearCacheButton = document.querySelector<HTMLButtonElement>('#clearCacheButton')!;
 
 window.addEventListener('unhandledrejection', event => {
   const reason = event.reason;
@@ -205,6 +206,14 @@ tileSizeSlider.addEventListener('input', () => {
   tileSizeValue.textContent = tileSizeSlider.value;
 });
 
+clearCacheButton.addEventListener('click', async () => {
+  // confirmation
+  const confirmed = confirm("This will delete downloaded models from your browser, are you sure?");
+  if (confirmed) {
+    await generator.clearCache();
+  }
+});
+
 // Generate button
 generateBtn.addEventListener('click', async () => {
   if (!("gpu" in navigator)) {
@@ -217,6 +226,7 @@ generateBtn.addEventListener('click', async () => {
   
   generateBtn.disabled = true;
   downloadBtn.disabled = true;
+  clearCacheButton.disabled = true;
   statusSection.classList.remove('hidden');
   stopBtn.style.display = 'flex';
   stopBtn.disabled = false;
@@ -320,6 +330,7 @@ generateBtn.addEventListener('click', async () => {
     alert(`Error generating image: ${error instanceof Error ? error.message : 'Unknown error'}`);
   } finally {
     generateBtn.disabled = false;
+    clearCacheButton.disabled = false;
     stopBtn.style.display = 'none';
     stopBtn.disabled = true;
     // Reset stop button text

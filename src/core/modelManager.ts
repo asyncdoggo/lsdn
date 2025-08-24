@@ -26,6 +26,10 @@ export function setBaseUrl(model_id: string): void {
 }
 
 export class ModelManager {
+  async clearCache() {
+    // Clear the cache
+    caches.delete("onnx")
+  }
   private models: ModelSessions = {};
   private isLoaded = false;
   private tokenizer: PreTrainedTokenizer | null = null;
@@ -286,7 +290,7 @@ export class ModelManager {
       // Load tokenizer
       await this.initializeTokenizer();
 
-      if (onProgress) onProgress('Loading UNet for 512px', 0.6);
+      if (onProgress) onProgress('Loading UNet', 0.6);
 
       // Load UNet for default 512px resolution
       const [latentHeight, latentWidth] = this.getLatentDimensions(resolution.height, resolution.width);

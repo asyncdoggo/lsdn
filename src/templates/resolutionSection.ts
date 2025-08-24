@@ -1,6 +1,12 @@
 export const resolutionSectionTemplate = `
   <div class="resolution-section">
-    <h3>Resolution</h3>
+    <div class="resolution-header">
+      <h3>Resolution</h3>
+      <!-- Info icon -->
+      <div class="info-icon" title="Recommended resolutions: 512x512, 512x768, 768x512. At least one of width or height must be 512px due to model constraints."  id="infoIcon">
+        <img src="info.png" alt="Info">
+      </div>
+    </div>
     <div class="resolution-sliders">
       <div class="setting-group">
         <label>Width: <span id="widthValue">512</span>px</label>

@@ -79,6 +79,7 @@ export const textToImageSectionTemplate = `
             <option value="subpixel/animeanything_v10-onnx">Anythingv10 (Anime)</option>
             </select>
           </div>
+          <button id="clearCacheButton">Clear Model Cache</button>
       </div>
     </div>
   </div>

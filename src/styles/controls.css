@@ -424,3 +424,45 @@
   border-color: #4f46e5;
   box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.5);
 }
+
+
+.resolution-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
+.info-icon {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.info-icon:hover {
+  cursor: pointer;
+}
+
+.info-icon > img {
+  width: 15px;
+  height: 15px;
+  filter: brightness(0) invert(1);
+  margin-bottom: 3px;
+}
+
+#clearCacheButton {
+  padding: 8px 12px;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+#clearCacheButton:hover {
+  background-color: #d32f2f;
+}
+
+#clearCacheButton:disabled {
+  background-color: #f44336;
+  cursor: not-allowed;
+}
