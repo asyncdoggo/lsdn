@@ -5,6 +5,7 @@ import { NoiseGenerator } from './utils/noiseGenerator';
 import { PerformanceMonitor } from './utils/performanceMonitor';
 import { LatentPreview } from './utils/latentPreview';
 import { ModelManager, TensorOperations, VAEProcessor, TiledVAEProcessor } from './core';
+import { ClipProcessor } from './utils/clipProcessor';
 
 export interface TextToImageOptions {
   prompt: string;
@@ -34,6 +35,7 @@ export class TextToImageGenerator {
   private tensorOps: TensorOperations;
   private vaeProcessor: VAEProcessor;
   private tiledVaeProcessor: TiledVAEProcessor;
+  private clipProcessor: ClipProcessor;
 
   // Tensor cache for performance optimization
   private tensorCache: {
@@ -52,6 +54,7 @@ export class TextToImageGenerator {
     this.tensorOps = new TensorOperations();
     this.vaeProcessor = new VAEProcessor();
     this.tiledVaeProcessor = new TiledVAEProcessor(this.modelManager);
+    this.clipProcessor = new ClipProcessor();
   }
 
   /**
@@ -150,27 +153,46 @@ export class TextToImageGenerator {
         throw new Error('Tokenizer not loaded');
       }
 
-      // Tokenize positive prompt
-      const { input_ids: posInputIds } = await tokenizer(prompt, { padding: true, max_length: 77, truncation: true, return_tensor: false });
-
-      // Tokenize negative prompt (empty string for unconditional)
-      const { input_ids: negInputIds } = await tokenizer(negativePromptText, { padding: true, max_length: 77, truncation: true, return_tensor: false });
-
       const models = this.modelManager.getModels();
       if (!models.textEncoder) {
         throw new Error('Text encoder not loaded');
       }
 
-      // Run text encoder for positive prompt
-      const {last_hidden_state: posEmbeddings} = await models.textEncoder.sess.run({
-        input_ids: new ort.Tensor('int32', posInputIds, [1, posInputIds.length])
-      });
+      let posEmbeddings: ort.Tensor;
+      let negEmbeddings: ort.Tensor;
 
-      // Run text encoder for negative prompt
-      const {last_hidden_state: negEmbeddings} = await models.textEncoder.sess.run({
-        input_ids: new ort.Tensor('int32', negInputIds, [1, negInputIds.length])
-      });
+      // Check if prompt contains weight syntax
+      const hasWeights = /(\([^)]+\)|\[[^\]]+\])/.test(prompt) || /(\([^)]+\)|\[[^\]]+\])/.test(negativePromptText);
+      
+      if (hasWeights) {
+        // Process positive prompt with weights
+        posEmbeddings = await this.clipProcessor.getWeightedEmbedding(tokenizer, models.textEncoder, prompt);
+        
+        // Process negative prompt with weights
+        negEmbeddings = await this.clipProcessor.getWeightedEmbedding(tokenizer, models.textEncoder, negativePromptText);
+      } else {
+        // Use standard tokenization for prompts without weights
+        console.log('📝 Using standard text encoding (no weights detected)');
+        
+        // Tokenize positive prompt
+        const { input_ids: posInputIds } = await tokenizer(prompt, { padding: true, max_length: 77, truncation: true, return_tensor: false });
+        
+        // Tokenize negative prompt
+        const { input_ids: negInputIds } = await tokenizer(negativePromptText, { padding: true, max_length: 77, truncation: true, return_tensor: false });
 
+        // Run text encoder for positive prompt
+        const posResult = await models.textEncoder.sess.run({
+          input_ids: new ort.Tensor('int32', posInputIds, [1, posInputIds.length])
+        });
+        posEmbeddings = posResult.last_hidden_state;
+
+        // Run text encoder for negative prompt
+        const negResult = await models.textEncoder.sess.run({
+          input_ids: new ort.Tensor('int32', negInputIds, [1, negInputIds.length])
+        });
+        negEmbeddings = negResult.last_hidden_state;
+      }
+      
       if (onProgress) onProgress('Generating initial noise', 0.2);
 
       // Generate random latents with correct dimensions for the target resolution

@@ -13,6 +13,18 @@ GPU is mandatory. Maybe NVIDIA only?
 - No servers or installations required
 - Real-time generation preview
 
+### Advanced Features
+- Tiled VAE decoding
+- Attention control for prompt weights
+- Generation history
+
+### Usage for prompt weighting
+To use prompt weighting, simply wrap the text you want to emphasize in parentheses and specify a weight. For example:
+- `cat (fluffy)`: fluffy will be emphasized with a weight of 1.1.
+- `cat ((fluffy))`: fluffy will be emphasized with a weight of 1.21.
+- `cat [fluffy]`: fluffy will be emphasized with a weight of 0.9.
+- `cat (fluffy:1.5)`: fluffy will be emphasized with a weight of 1.5.
+
 ### Generation Options
 - Text-to-Image generation
 - Multiple sampling methods:
