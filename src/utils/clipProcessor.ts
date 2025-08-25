@@ -70,122 +70,124 @@ export class ClipProcessor {
     }
 
 
-
     /**
-     * Finds exact token positions for weighted parts and applies direction-based scaling
-     */
+    * Finds exact token positions for weighted parts and applies ComfyUI/A111-like scaling
+    * with RMS normalization so small weights (0.1 vs 0.01) remain distinguishable.
+    */
     async getWeightedEmbedding(tokenizer: any, text_encoder: any, prompt: string): Promise<ort.Tensor> {
         const parts = this.parsePrompt(prompt);
-        
-        if (parts.every(p => p.weight === 1.0)) {
-            // No weighting needed, use standard path
-            const inputs = await tokenizer(prompt, { 
-                padding: true, 
-                max_length: 77, 
-                truncation: true, 
-                return_tensor: false 
-            });
-            
-            return await text_encoder.sess.run({
-                input_ids: new ort.Tensor('int32', inputs.input_ids, [1, inputs.input_ids.length])
-            }).then((result: any) => result.last_hidden_state);
-        }
 
-        // Step 1: Get empty embedding baseline
-        const emptyInputs = await tokenizer('', { 
-            padding: true, 
-            max_length: 77, 
-            truncation: true, 
-            return_tensor: false 
+        // Full prompt text (without weights, just text pieces joined)
+        const fullPrompt = parts.map(p => p.text).join(" ").replace(/\s+/g, " ").trim() || "";
+
+        // --- 1) Encode full (unweighted) ---
+        const fullInputs = await tokenizer(fullPrompt, {
+            padding: true,
+            max_length: 77,
+            truncation: true,
+            return_tensor: false
         });
-        
-        const emptyResult = await text_encoder.sess.run({
+
+        const fullOut = await text_encoder.sess.run({
+            input_ids: new ort.Tensor('int32', fullInputs.input_ids, [1, fullInputs.input_ids.length])
+        });
+
+        const fullLast = fullOut.last_hidden_state;
+        const fullArr = new Float32Array(fullLast.data);
+        const dims = fullLast.dims;              // [1, seqLen, embDim]
+        const seqLen = dims[dims.length - 2];
+        const embDim = dims[dims.length - 1];
+
+        // Fast path: no weights at all
+        if (parts.every(p => p.weight === 1.0)) return fullLast;
+
+        // --- 2) Encode empty/unconditional ---
+        const emptyInputs = await tokenizer("", {
+            padding: true,
+            max_length: 77,
+            truncation: true,
+            return_tensor: false
+        });
+
+        const emptyOut = await text_encoder.sess.run({
             input_ids: new ort.Tensor('int32', emptyInputs.input_ids, [1, emptyInputs.input_ids.length])
         });
-        const emptyEmbedding = new Float32Array(emptyResult.last_hidden_state.data);
 
-        // Step 2: Process each weighted part individually to find exact token mappings
-        const tokenWeightMap = new Map<number, number>();
-        
+        const emptyArr = new Float32Array(emptyOut.last_hidden_state.data);
+
+        // --- 3) Build token→weight map ---
+        const weights = new Float32Array(seqLen).fill(1.0);
+
+        // Helper: multiply weights across a token span
+        const applyRangeWeight = (start: number, length: number, w: number) => {
+            for (let t = 0; t < length; t++) {
+                if (start + t < seqLen) weights[start + t] *= w;
+            }
+        };
+
+        // Match each weighted part’s tokens in the full prompt
         for (const part of parts) {
-            if (!part.text.trim() || part.weight === 1.0) continue;
-            
-            // Tokenize just this part to see its tokens
-            const partInputs = await tokenizer(part.text.trim(), { 
-                padding: false, 
-                max_length: 77, 
-                truncation: true, 
-                return_tensor: false 
+            const raw = (part.text || "").trim();
+            if (!raw || part.weight === 1.0) continue;
+
+            const pInputs = await tokenizer(raw, {
+                padding: false,
+                max_length: 77,
+                truncation: true,
+                return_tensor: false
             });
-            
-            // Also tokenize the full prompt to find where these tokens appear
-            const fullPrompt = parts.map(p => p.text).join(' ');
-            const fullInputs = await tokenizer(fullPrompt, { 
-                padding: true, 
-                max_length: 77, 
-                truncation: true, 
-                return_tensor: false 
-            });
-            
-            
-            // Find where the part tokens appear in the full sequence
-            const partTokens = partInputs.input_ids.slice(1, -1); // Remove BOS/EOS
-            for (let i = 1; i < fullInputs.input_ids.length - 1; i++) {
-                for (let j = 0; j < partTokens.length; j++) {
-                    if (i + j < fullInputs.input_ids.length && 
-                        fullInputs.input_ids[i + j] === partTokens[j]) {
-                        if (j === partTokens.length - 1) {
-                            // Found complete match, apply weight to all tokens in this sequence
-                            for (let k = 0; k < partTokens.length; k++) {
-                                tokenWeightMap.set(i - j + k, part.weight);
-                            }
-                        }
-                    } else {
+
+            // Remove BOS/EOS if present
+            let pTokens = pInputs.input_ids.slice();
+            if (pTokens.length >= 2) pTokens = pTokens.slice(1, pTokens.length - 1);
+
+            if (pTokens.length === 0) continue;
+
+            const fullIds = fullInputs.input_ids;
+
+            for (let i = 1; i + pTokens.length - 1 < fullIds.length; i++) {
+                let match = true;
+                for (let j = 0; j < pTokens.length; j++) {
+                    if (fullIds[i + j] !== pTokens[j]) {
+                        match = false;
                         break;
                     }
                 }
+                if (match) applyRangeWeight(i, pTokens.length, part.weight);
             }
         }
 
-        // Step 3: Get unweighted embedding for full prompt
-        const fullPrompt = parts.map(p => p.text).join(' ');
-        const inputs = await tokenizer(fullPrompt, { 
-            padding: true, 
-            max_length: 77, 
-            truncation: true, 
-            return_tensor: false 
-        });
+        // --- 4) Interpolate between empty and full for each token ---
+        const finalArr = new Float32Array(fullArr.length);
 
-        const result = await text_encoder.sess.run({
-            input_ids: new ort.Tensor('int32', inputs.input_ids, [1, inputs.input_ids.length])
-        });
-        
-        const unweightedEmbedding = new Float32Array(result.last_hidden_state.data);
-        
-        const embeddingDim = 768;
-        const seqLen = Math.min(77, inputs.input_ids.length);
-        const finalEmbedding = new Float32Array(unweightedEmbedding.length);
-        
-        let weightsApplied = 0;
-        for (let tokenIdx = 0; tokenIdx < seqLen; tokenIdx++) {
-            const weight = tokenWeightMap.get(tokenIdx) || 1.0;
-            const startIdx = tokenIdx * embeddingDim;
-            
-            if (weight !== 1.0) {
-                weightsApplied++;
-            }
-            
-            for (let dim = 0; dim < embeddingDim; dim++) {
-                const idx = startIdx + dim;
-                const emptyValue = emptyEmbedding[idx] || 0;
-                const unweightedValue = unweightedEmbedding[idx];
-                
-                const direction = unweightedValue - emptyValue;
-                finalEmbedding[idx] = emptyValue + (direction * weight);
+        for (let tok = 0; tok < seqLen; tok++) {
+            const w = weights[tok];
+            const off = tok * embDim;
+
+            for (let d = 0; d < embDim; d++) {
+                const u = fullArr[off + d]; // unweighted
+                const e = emptyArr[off + d]; // empty
+                finalArr[off + d] = e + (u - e) * w;
             }
         }
-        
-        return new ort.Tensor('float32', finalEmbedding, result.last_hidden_state.dims);
+
+        // --- 5) RMS re-normalize embeddings (preserves prompt strength) ---
+        let sumSqFull = 0, sumSqWeighted = 0, count = 0;
+        for (let i = 0; i < finalArr.length; i++) {
+            sumSqFull += fullArr[i] * fullArr[i];
+            sumSqWeighted += finalArr[i] * finalArr[i];
+            count++;
+        }
+
+        const rmsFull = Math.sqrt(sumSqFull / count);
+        const rmsWeighted = Math.sqrt(sumSqWeighted / count);
+        const scale = rmsWeighted > 0 ? (rmsFull / rmsWeighted) : 1.0;
+
+        for (let i = 0; i < finalArr.length; i++) {
+            finalArr[i] *= scale;
+        }
+
+        return new ort.Tensor('float32', finalArr, fullLast.dims);
     }
 
 
