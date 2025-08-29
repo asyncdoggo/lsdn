@@ -114,6 +114,44 @@ const clearHistory = document.querySelector<HTMLButtonElement>('#clearHistory')!
 const randomizeSeed = document.querySelector<HTMLInputElement>('#randomizeSeed')!;
 const clearCacheButton = document.querySelector<HTMLButtonElement>('#clearCacheButton')!;
 
+const imgPromptInput = document.querySelector<HTMLInputElement>('#imgPromptInput')!;
+const imgPromptStrength = document.querySelector<HTMLInputElement>('#imgPromptStrength')!;
+let imgPromptStrengthValue = document.querySelector<HTMLElement>('#imgPromptStrengthValue')!;
+
+// <div class="img-prompt">
+//         <label for="imgPromptInput">Image Prompt (Optional)</label>
+//         <!-- Info icon -->
+//         <div class="info-icon" title="Use an image to guide the generation process."  id="infoIcon">
+//           <img src="info.png" alt="Info">
+//         </div>
+//         <input type="file" id="imgPromptInput" accept="image/*" />
+//         <label for="imgPromptStrength">Image Prompt Strength: <span id="imgPromptStrengthValue">0.5</span></label>
+//         <input type="range" id="imgPromptStrength" min="0" max="1" step="0.1" value="0.5" />
+//       </div>
+
+let imagePrompt: HTMLImageElement | null = null;
+
+imgPromptInput.addEventListener('change', () => {
+  const file = imgPromptInput.files?.[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        imagePrompt = img;
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+imgPromptStrength.addEventListener('input', () => {
+  imgPromptStrengthValue.textContent = imgPromptStrength.value;
+});
+
+
+
 window.addEventListener('unhandledrejection', event => {
   const reason = event.reason;
 
@@ -214,6 +252,33 @@ clearCacheButton.addEventListener('click', async () => {
   }
 });
 
+function processImage(imageData: ImageData) {
+  // If the image height or width is greater than 512 then resize the image to have the smallest dimension be 512
+  const maxDimension = 512;
+  let { width, height } = imageData;
+
+  if (width > maxDimension || height > maxDimension) {
+    const scale = Math.min(maxDimension / width, maxDimension / height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  // Make sure that new width and height is divisible by 64
+  width = Math.floor(width / 64) * 64;
+  height = Math.floor(height / 64) * 64;
+
+  console.log('Resized image dimensions:', width, height);
+
+  // Create a new canvas to draw the resized image
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  ctx.putImageData(imageData, 0, 0);
+
+  return ctx.getImageData(0, 0, width, height);
+}
+
 // Generate button
 generateBtn.addEventListener('click', async () => {
   if (!("gpu" in navigator)) {
@@ -242,11 +307,21 @@ generateBtn.addEventListener('click', async () => {
       alert('Please enter a text prompt');
       return;
     }
-    
-    // if (!generator.modelsLoaded) {
-    //   alert('AI models are not loaded. Please click "Load AI Models" first.');
-    //   return;
-    // }
+
+    let image = null;
+
+    if (imagePrompt) {
+      // Get image bytes and call process image function
+      const canvas = document.createElement('canvas');
+      canvas.width = imagePrompt.width;
+      canvas.height = imagePrompt.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(imagePrompt, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        image = processImage(imageData);
+      }
+    }
 
     const width = parseInt(widthSlider.value);
     const height = parseInt(heightSlider.value);
@@ -274,13 +349,17 @@ generateBtn.addEventListener('click', async () => {
       useTiledVAE: tiledVAECheck.checked,
       lowMemoryMode: lowMemoryCheck.checked,
       tileSize: parseInt(tileSizeSlider.value),
-      model: modelSelect.value
+      model: modelSelect.value,
+      imagePrompt: {
+        image: image,
+        strength: parseFloat(imgPromptStrength.value)
+      }
     };
 
     actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
 
     // Create history entry before starting generation
-    const historyId = await history.addEntry(options);
+    // const historyId = await history.addEntry(options);
     updateHistoryDropdown();
     
     const imageData = await generator.generateImage(
@@ -320,7 +399,7 @@ generateBtn.addEventListener('click', async () => {
 
       // Update history entry with preview
       const previewUrl = canvas.toDataURL('image/png');
-      history.updateEntry(historyId, { previewUrl });
+      // history.updateEntry(historyId, { previewUrl });
       updateHistoryDropdown();
     }
     

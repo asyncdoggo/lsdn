@@ -16,6 +16,16 @@ export const textToImageSectionTemplate = `
         rows="2"
         maxlength="300"
       ></textarea>
+      <div class="img-prompt">
+        <label for="imgPromptInput">Image Prompt (Optional)</label>
+        <!-- Info icon -->
+        <div class="info-icon" title="Use an image to guide the generation process."  id="infoIcon">
+          <img src="info.png" alt="Info">
+        </div>
+        <input type="file" id="imgPromptInput" accept="image/*" />
+        <label for="imgPromptStrength">Image Prompt Strength: <span id="imgPromptStrengthValue">0.5</span></label>
+        <input type="range" id="imgPromptStrength" min="0" max="1" step="0.1" value="0.5" />
+      </div>
       <div class="ai-settings">
         <div class="setting-group">
           <label title="Number of denoising steps">Steps: <span id="stepsValue">20</span></label>

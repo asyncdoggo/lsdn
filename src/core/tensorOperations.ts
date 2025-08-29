@@ -3,6 +3,14 @@ import { TensorPool } from '../utils/tensorPool';
 import { PerformanceMonitor } from '../utils/performanceMonitor';
 
 export class TensorOperations {
+  add(latentData: Float16Array<ArrayBufferLike>, noise: Float16Array<ArrayBufferLike>): any {
+    const result = new Float16Array(latentData.length);
+    for (let i = 0; i < latentData.length; i++) {
+      result[i] = latentData[i] + noise[i];
+    }
+    return result;
+  }
+  
   private tensorPool = TensorPool.getInstance();
   private performanceMonitor = PerformanceMonitor.getInstance();
 

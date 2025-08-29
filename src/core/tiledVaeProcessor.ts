@@ -17,7 +17,7 @@ export class TiledVAEProcessor {
     latent: ort.Tensor, 
     width: number, 
     height: number, 
-    tileSize: number = 512,
+    tileSize: number = 256,
     onProgress?: (stage: string, progress: number) => void
   ): Promise<ort.Tensor> {
     const latentHeight = height / 8; // VAE downsamples by factor of 8
@@ -44,7 +44,7 @@ export class TiledVAEProcessor {
     
     // Create a single VAE session that can handle the maximum tile size (with overlap)
     const maxTileSizeLatent = tileSizeLatent + overlapLatent;
-    const vaeSession = await this.modelManager.createVAESession(maxTileSizeLatent, maxTileSizeLatent, onProgress);
+    const vaeSession = await this.modelManager.createVAEDecoderSession(maxTileSizeLatent, maxTileSizeLatent, onProgress);
     
     try {
       let processedTiles = 0;

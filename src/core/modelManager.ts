@@ -6,11 +6,13 @@ env.allowLocalModels = false;
 env.useBrowserCache = false;
 
 let BASE_URL = "https://huggingface.co/subpixel/small-stable-diffusion-v0-onnx-ort-web/resolve/main";
+// let BASE_URL="/models/trinart_stable_diffusion_v2"
 
 export const MODEL_URLS = {
   "unet": `${BASE_URL}/unet/model.onnx`,
   "textEncoder": `${BASE_URL}/text_encoder/model.onnx`,
   "vaeDecoder": `${BASE_URL}/vae_decoder/model.onnx`,
+  "vaeEncoder": `${BASE_URL}/vae_encoder/model.onnx`,
   "weights_url": `${BASE_URL}/unet/weights.pb`
 };
 
@@ -99,6 +101,22 @@ export class ModelManager {
           }
         }
       }
+    },
+    vaeEncoder: {
+      url: MODEL_URLS.vaeEncoder,
+      baseOpt: {
+        executionProviders: ['webgpu'],
+        enableMemPattern: false,
+        enableCpuMemArena: false,
+        extra: {
+          session: {
+            disable_prepacking: "1",
+            use_device_allocator_for_initializers: "1",
+            use_ort_model_bytes_directly: "1",
+            use_ort_model_bytes_for_initializers: "1"
+          }
+        }
+      }
     }
   };
 
@@ -174,13 +192,29 @@ export class ModelManager {
   /**
    * Create VAE decoder session with specific dimensions
    */
-  async createVAESession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
+  async createVAEDecoderSession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
     this.modelConfig.vaeDecoder.url = BASE_URL + '/vae_decoder/model.onnx';
 
     const vaeBytes = await this.fetchAndCache(this.modelConfig.vaeDecoder.url, onProgress, 'VAE Decoder');
 
     const vaeOptions = {
       ...this.modelConfig.vaeDecoder.baseOpt,
+      freeDimensionOverrides: {
+        batch_size: 1,
+        num_channels_latent: 4,
+        height_latent: latentHeight,
+        width_latent: latentWidth
+      }
+    };
+
+    return await ort.InferenceSession.create(vaeBytes, vaeOptions);
+  }
+
+  async createVAEEncoderSession(latentHeight: number, latentWidth: number, onProgress?: (stage: string, progress: number) => void): Promise<ort.InferenceSession> {
+    const vaeBytes = await this.fetchAndCache(this.modelConfig.vaeEncoder.url, onProgress, 'VAE Encoder');
+
+    const vaeOptions = {
+      ...this.modelConfig.vaeEncoder.baseOpt,
       freeDimensionOverrides: {
         batch_size: 1,
         num_channels_latent: 4,

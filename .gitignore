@@ -23,7 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .vscode
-public/model
-public/model2
+public/models/*
 venv
 convert.py

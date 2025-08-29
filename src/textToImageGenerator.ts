@@ -19,6 +19,10 @@ export interface TextToImageOptions {
   useTiledVAE?: boolean;  // Use tiled VAE to reduce memory usage
   lowMemoryMode?: boolean; // Enable low memory mode (unloads unet when decoding)
   tileSize?: number;      // Size of tiles (defaults to 512)
+  imagePrompt?: {
+    image: ImageData | null;
+    strength: number | undefined;
+  }
 }
 
 export class TextToImageGenerator {
@@ -92,6 +96,82 @@ export class TextToImageGenerator {
     this.isCancelled = false;
   }
 
+  imageDataToFloat16CHWTensor(imageData: ImageDataArray, width: number, height: number): ort.Tensor {
+    // Convert to Float32Array in CHW format, normalized to [-1, 1]
+    const chw = new Float16Array(1 * 3 * width * height);
+    const size = width * height;
+    for (let i = 0; i < size; i++) {
+      const r = imageData[i * 4] / 255;
+      const g = imageData[i * 4 + 1] / 255;
+      const b = imageData[i * 4 + 2] / 255;
+
+      chw[i] = r * 2 - 1;           // R
+      chw[i + size] = g * 2 - 1;    // G
+      chw[i + 2 * size] = b * 2 - 1; // B
+    }
+
+    return new ort.Tensor("float16", chw, [1, 3, height, width]);
+
+  }
+
+  randn() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  }
+
+  addNoiseWithStrength(latents: Float16Array, strength: number) {
+    const noisy = new Float16Array(latents.length);
+    const sqrtKeep = Math.sqrt(1 - strength);
+    const sqrtNoise = Math.sqrt(strength);
+
+    for (let i = 0; i < latents.length; i++) {
+      const eps = this.randn();
+      noisy[i] = sqrtKeep * latents[i] + sqrtNoise * eps;
+    }
+
+    return noisy;
+  }
+
+  resizeImageDataToMax8(imageData: ImageData, maxSize = 512) {
+    const origWidth = imageData.width;
+    const origHeight = imageData.height;
+
+    const aspect = origWidth / origHeight;
+
+    let targetWidth: number, targetHeight: number;
+
+    if (origWidth >= origHeight) {
+      targetWidth = maxSize;
+      targetHeight = Math.round(targetWidth / aspect / 8) * 8; // round smaller side to multiple of 8
+    } else {
+      targetHeight = maxSize;
+      targetWidth = Math.round(targetHeight * aspect / 8) * 8;
+    }
+
+    // Draw the original ImageData to a canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    const ctx = canvas.getContext("2d")!;
+    // Temporary canvas to hold original ImageData
+    const tmpCanvas = document.createElement("canvas");
+    tmpCanvas.width = origWidth;
+    tmpCanvas.height = origHeight;
+    tmpCanvas.getContext("2d")!.putImageData(imageData, 0, 0);
+
+    // Draw scaled image
+    ctx.drawImage(tmpCanvas, 0, 0, origWidth, origHeight, 0, 0, targetWidth, targetHeight);
+
+    // Extract resized ImageData
+    const resizedImageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+
+    return { canvas, width: targetWidth, height: targetHeight, resizedImageData };
+  }
+
+
 
   /**
    * Generate image from text prompt
@@ -118,11 +198,68 @@ export class TextToImageGenerator {
       scheduler = 'euler-karras',
       useTiledVAE = false,
       tileSize = 256,
-      lowMemoryMode = true
+      lowMemoryMode = true,
+      imagePrompt = null
     } = options;
 
-    await this.modelManager.loadModels(onProgress!, {height, width});
-    
+    let [latentHeight, latentWidth] = this.modelManager.getLatentDimensions(height, width);
+    let latentShape = [1, 4, latentHeight, latentWidth];
+    let latentData: Float16Array;
+
+    if (imagePrompt?.image) {
+      width = imagePrompt.image.width || width;
+      height = imagePrompt.image.height || height;
+
+      const { canvas, width: resizedWidth, height: resizedHeight, resizedImageData } = this.resizeImageDataToMax8(imagePrompt.image);
+
+      width = resizedWidth;
+      height = resizedHeight;
+      [latentHeight, latentWidth] = this.modelManager.getLatentDimensions(height, width);
+      latentShape = [1, 4, latentHeight, latentWidth];
+
+      const imageSample = this.imageDataToFloat16CHWTensor(resizedImageData.data, width, height);
+
+      const vaeEncoderSession = await this.modelManager.createVAEEncoderSession(latentHeight, latentWidth, onProgress);
+
+      const vaeResult = await vaeEncoderSession.run({
+        sample: imageSample
+      });
+      const latentTensor = vaeResult.latent_sample as ort.Tensor;
+      latentData = latentTensor.data as Float16Array;
+
+      vaeEncoderSession.release(); // Dispose session after use
+
+      // latentData = latentData.map(v => v * 0.18215);
+
+      latentData = this.addNoiseWithStrength(latentData, 0.1);
+
+    }
+    else {
+      // Generate random latents with correct dimensions for the target resolution
+      latentData = this.noiseGenerator.generateRandomLatents(latentShape, 1.0);
+    }
+
+
+    let latent = new ort.Tensor('float16', latentData, latentShape);
+
+    const vaeSession = await this.modelManager.createVAEDecoderSession(latent.dims[2], latent.dims[3], onProgress);
+
+      const vaeResult = await vaeSession.run({
+        latent_sample: latent
+      });
+
+      const decoded = vaeResult.sample as ort.Tensor;
+
+      vaeSession.release(); // Dispose session after use
+
+    const imageData = this.vaeProcessor.tensorToImageData(decoded);
+    return imageData;
+
+
+
+
+    await this.modelManager.loadModels(onProgress!, { height, width });
+
     this.setScheduler(scheduler);
 
     // Reset scheduler state (important for LMS scheduler which stores derivatives)
@@ -163,20 +300,20 @@ export class TextToImageGenerator {
 
       // Check if prompt contains weight syntax
       const hasWeights = /(\([^)]+\)|\[[^\]]+\])/.test(prompt) || /(\([^)]+\)|\[[^\]]+\])/.test(negativePromptText);
-      
+
       if (hasWeights) {
         // Process positive prompt with weights
         posEmbeddings = await this.clipProcessor.getWeightedEmbedding(tokenizer, models.textEncoder, prompt);
-        
+
         // Process negative prompt with weights
         negEmbeddings = await this.clipProcessor.getWeightedEmbedding(tokenizer, models.textEncoder, negativePromptText);
       } else {
         // Use standard tokenization for prompts without weights
         console.log('📝 Using standard text encoding (no weights detected)');
-        
+
         // Tokenize positive prompt
         const { input_ids: posInputIds } = await tokenizer(prompt, { padding: true, max_length: 77, truncation: true, return_tensor: false });
-        
+
         // Tokenize negative prompt
         const { input_ids: negInputIds } = await tokenizer(negativePromptText, { padding: true, max_length: 77, truncation: true, return_tensor: false });
 
@@ -192,14 +329,29 @@ export class TextToImageGenerator {
         });
         negEmbeddings = negResult.last_hidden_state;
       }
-      
+
       if (onProgress) onProgress('Generating initial noise', 0.2);
 
       // Generate random latents with correct dimensions for the target resolution
       const [latentHeight, latentWidth] = this.modelManager.getLatentDimensions(height, width);
       const latentShape = [1, 4, latentHeight, latentWidth];
-      const latentData = this.noiseGenerator.generateRandomLatents(latentShape, 1.0);
+      let latentData: Float16Array;
+
+      if (imagePrompt?.data) {
+        // Use the image data as the initial latent and noise the image based on the strength value provided in options
+        const { data, width, height, strength } = imagePrompt;
+        const noise = this.noiseGenerator.generateRandomLatents([1, 4, height!, width!], strength);
+        const imageLatent = new ort.Tensor('float16', data!, [1, 4, height!, width!]);
+        latentData = this.tensorOps.add(imageLatent.data as Float16Array, noise as Float16Array);
+      }
+      else {
+        latentData = this.noiseGenerator.generateRandomLatents(latentShape, 1.0);
+      }
+
       let latent = new ort.Tensor('float16', latentData, latentShape);
+      onPreview && onPreview((latent as any).toImageData({ tensorLayout: 'NCHW', format: 'RGB' }));
+
+      return latent;
 
       if (onProgress) onProgress('Running UNet denoising', 0.3);
 
@@ -228,7 +380,7 @@ export class TextToImageGenerator {
         const timestep = timestepData.timesteps[stepIndex];
         const sigma = timestepData.sigmas[stepIndex];
         const sigmaNext = timestepData.sigmas[stepIndex + 1];
-        
+
         const progressBase = 0.3 + (stepIndex / steps) * 0.4; // 0.3 to 0.7
 
         if (onProgress) onProgress(`Denoising step ${stepIndex + 1}/${steps}`, progressBase);
@@ -267,13 +419,13 @@ export class TextToImageGenerator {
 
         // Single batched UNet call instead of two separate calls
         let batchedUnetResult: Record<string, ort.Tensor>;
-        try{
+        try {
           batchedUnetResult = await models.unet.sess.run({
             sample: batchedSample,
             timestep: batchedTimestepTensor,
             encoder_hidden_states: batchedEmbeddings
           });
-        }catch(error){
+        } catch (error) {
           console.error('Error occurred during UNet inference:', error);
           throw error;
         }
@@ -308,7 +460,7 @@ export class TextToImageGenerator {
         this.tensorOps.disposeTensor(batchedOutput);
         this.tensorOps.disposeTensor(negOutput);
         this.tensorOps.disposeTensor(posOutput);
-      
+
         const unetTime = performance.now() - unetStartTime;
         totalUNetTime += unetTime;
 
@@ -364,7 +516,7 @@ export class TextToImageGenerator {
         sample = await this.tiledVaeProcessor.decodeTiledVAE(latent, width, height, tileSize, onProgress);
       } else {
         // Regular VAE decoding
-        const vaeSession = await this.modelManager.createVAESession(latent.dims[2], latent.dims[3], onProgress);
+        const vaeSession = await this.modelManager.createVAEDecoderSession(latent.dims[2], latent.dims[3], onProgress);
 
         const vaeResult = await vaeSession.run({
           latent_sample: latent
@@ -419,6 +571,18 @@ export class TextToImageGenerator {
       onProgress?.('Error', 1.0);
       throw error;
     }
+  }
+  resizeImageData(data: ImageData, size: [number, number]) {
+    const [newWidth, newHeight] = size;
+    const resizedData = new ImageData(newWidth, newHeight);
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx) throw new Error('Failed to create canvas context');
+
+    ctx.canvas.width = newWidth;
+    ctx.canvas.height = newHeight;
+    ctx.putImageData(data, 0, 0);
+    resizedData.data.set(ctx.getImageData(0, 0, newWidth, newHeight).data);
+    return resizedData;
   }
 
   /**
