@@ -9,7 +9,7 @@ import TextToImageSection from './components/textToImageSection'
 import ActionSection from './components/ActionSection'
 import CanvasSection from './components/CanvasSection'
 import { TextToImageGenerator } from './textToImageGenerator'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 
 const initialSettings = {
@@ -37,6 +37,33 @@ function App() {
   const [loadingText, setLoadingText] = useState<string | undefined>(undefined);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const ttoiRef = useRef<TextToImageGenerator | null>(new TextToImageGenerator());
+
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+
+      // Detect GPU/WebGPU related errors
+      const isGpuError = reason instanceof DOMException &&
+        reason.name === 'AbortError' &&
+        /mapAsync|GPUBuffer|GPU/i.test(reason.message);
+
+      if (isGpuError) {
+        console.error('GPU/WebGPU error detected:', reason);
+
+        alert("There was a GPU error while running the model. Please reload the page and try again.");
+        window.location.reload();
+
+      } else {
+        console.error('Unhandled rejection caught:', reason);
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   return (
     <>
