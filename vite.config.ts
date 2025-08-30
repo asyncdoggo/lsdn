@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
 import { copyFileSync, mkdirSync, readdirSync } from 'fs'
+import react from '@vitejs/plugin-react'
 
 // Copy ONNX Runtime files to the build output
 function copyOnnxFiles() {
@@ -56,5 +57,5 @@ export default defineConfig({
     closeBundle() {
       copyOnnxFiles();
     }
-  }]
+  }, react()]
 })

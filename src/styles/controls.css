@@ -91,6 +91,10 @@
   appearance: none;
 }
 
+.setting-group input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
 .setting-group input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;

@@ -15,6 +15,7 @@ export interface TextToImageOptions {
   steps: number;
   guidance: number;
   seed: number;
+  randomize: boolean;
   scheduler?: SchedulerType;
   useTiledVAE?: boolean;  // Use tiled VAE to reduce memory usage
   lowMemoryMode?: boolean; // Enable low memory mode (unloads unet when decoding)
@@ -29,6 +30,7 @@ export class TextToImageGenerator {
   private noiseGenerator: NoiseGenerator;
   private performanceMonitor = PerformanceMonitor.getInstance();
   private isCancelled: boolean = false;
+  public isGenerating: boolean = false;
 
   // Core processors
   private modelManager: ModelManager;
@@ -48,7 +50,7 @@ export class TextToImageGenerator {
     // Initialize scheduler and noise generator
     this.scheduler = SchedulerRegistry.createScheduler(schedulerType);
     this.noiseGenerator = new NoiseGenerator();
-
+    this.isGenerating = false;
     // Initialize core processors
     this.modelManager = new ModelManager();
     this.tensorOps = new TensorOperations();
@@ -103,7 +105,7 @@ export class TextToImageGenerator {
   ): Promise<ImageData> {
     const startTime = performance.now();
     this.performanceMonitor.startSession();
-
+    this.isGenerating = true;
 
     // Reset cancellation flag at the start
     this.resetCancellation();
@@ -418,6 +420,8 @@ export class TextToImageGenerator {
       console.error('Image generation failed:', error);
       onProgress?.('Error', 1.0);
       throw error;
+    } finally {
+      this.isGenerating = false;
     }
   }
 
