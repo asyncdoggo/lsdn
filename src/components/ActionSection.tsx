@@ -48,7 +48,7 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
             steps: entry.options.steps,
             guidance: entry.options.guidance,
             scheduler: entry.options.scheduler || 'euler-karras',
-            seed: entry.options.seed || '',
+            seed: entry.options.seed,
             useTiledVAE: entry.options.useTiledVAE || false,
             lowMemoryMode: entry.options.lowMemoryMode || false,
             randomize: entry.options.randomize || false,
@@ -94,6 +94,7 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
         }
 
         let actualSeed: number = settings.seed;
+        
         if (settings.randomize) {
             actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
         }
@@ -101,6 +102,7 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
         if (isNaN(actualSeed) || actualSeed < 0) {
             actualSeed = Math.floor(Math.random() * 0xFFFFFFFF);
         }
+        settings.seed = actualSeed; // Update settings with actual seed
 
         setSettings({ ...settings, seed: actualSeed });
 

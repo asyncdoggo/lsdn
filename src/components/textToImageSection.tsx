@@ -1,3 +1,4 @@
+import { setBaseUrl } from "../core/modelManager";
 import type { TextToImageGenerator } from "../textToImageGenerator";
 
 export default function TextToImageSection({settings, setSettings, generator}: {settings: any, setSettings: any, generator: TextToImageGenerator | null}) {
@@ -88,7 +89,7 @@ export default function TextToImageSection({settings, setSettings, generator}: {
                 <div className="model-status">
                     <div className="model-select-group">
                         <label htmlFor="modelSelect">Model:</label>
-                        <select id="modelSelect" value={settings.model} onChange={(e) => setSettings({...settings, model: e.target.value})}>
+                        <select id="modelSelect" value={settings.model} onChange={(e) => { setSettings({...settings, model: e.target.value}); setBaseUrl(e.target.value); }}>
                             <option value="subpixel/small-stable-diffusion-v0-onnx-ort-web">Small Stable Diffusion V0</option>
                             <option value="subpixel/Typhoon-SD15-V2-onnx">Typhoon SD (realistic)</option>
                             <option value="subpixel/animeanything_v10-onnx">Anythingv10 (Anime)</option>

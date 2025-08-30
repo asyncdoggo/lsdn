@@ -50,7 +50,7 @@ function App() {
             <ActionSection settings={settings} setSettings={setSettings} setBaseUrl={setBaseUrl} generator={ttoiRef.current} setLoadingText={setLoadingText} canvasRef={canvasRef} />
           </div>
 
-          <CanvasSection canvasRef={canvasRef} loadingText={loadingText} />
+          <CanvasSection canvasRef={canvasRef} loadingText={loadingText} settings={settings} />
         </div>
       </div>
     </>
