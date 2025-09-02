@@ -1,20 +1,10 @@
 .chat-page {
-    height: 100vh;
-    width: 80%;
-    padding: 20px;
     background: #f4f4f8;
     overflow: auto;
 }
 
-.chat-parent {
-    width: 80%;
-    display: flex;
-    justify-content: start;
-    align-items: center;
-}
 .chat-container {
-    width: 80%;
-    height: 600px;
+    width: 100%;
     display: flex;
     flex-direction: column;
     border: 1px solid #ccc;

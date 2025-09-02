@@ -4,7 +4,7 @@ import "../styles/ChatApp.css"
 import DOMPurify from 'isomorphic-dompurify';
 import { marked } from "marked";
 
-export default function ChatBot() {
+export default function ChatBot({ parentWindowRef }: { parentWindowRef: React.RefObject<HTMLDivElement | null> }) {
   const [chatMessages, setChatMessages] = useState<{ role: string; content: string; temp?: boolean }[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -13,11 +13,34 @@ export default function ChatBot() {
   const [initializingModel, setInitializingModel] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Scroll to bottom whenever chatMessages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
+
+  useEffect(() => {
+
+    if (parentWindowRef?.current) {
+      const resizeObserver = new ResizeObserver(() => {
+        // Handle resize
+        if (containerRef.current && parentWindowRef.current) {
+          containerRef.current.style.height = `${parentWindowRef.current.clientHeight - 42}px`;
+          containerRef.current.style.width = `${parentWindowRef.current.clientWidth}px`;
+        }
+
+      });
+      if (containerRef.current) {
+        resizeObserver.observe(parentWindowRef.current!);
+      }
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }
+
+  }, [parentWindowRef?.current]);
+
 
   const handleSend = async () => {
     if (!input.trim() || !initialized) return;
@@ -87,27 +110,29 @@ export default function ChatBot() {
     setInput("");
   };
 
+
+
   return (
     <div className="chat-page">
       <div className="chat-parent">
-        <div className="chat-container">
+        <div className="chat-container" ref={containerRef}>
           <div className="chat-header">
             <span>Chat</span>
-              <div className="select-model">
-                <select value={selectedModelIndex} onChange={e => setSelectedModelIndex(Number(e.target.value))} disabled={initializingModel}>
-                  {availableModels.map((m, i) => (
-                    <option key={i} value={i}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={() => handleInitModel(selectedModelIndex)} disabled={initializingModel || initialized}>
-                  Load Model
-                </button>
-                <button onClick={() => { unload(); setInitialized(false); }} disabled={!initialized || initializingModel || loading} className="unloadbtn">
-                  Unload Model
-                </button>
-              </div>
+            <div className="select-model">
+              <select value={selectedModelIndex} onChange={e => setSelectedModelIndex(Number(e.target.value))} disabled={initializingModel}>
+                {availableModels.map((m, i) => (
+                  <option key={i} value={i}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => handleInitModel(selectedModelIndex)} disabled={initializingModel || initialized}>
+                Load Model
+              </button>
+              <button onClick={() => { unload(); setInitialized(false); }} disabled={!initialized || initializingModel || loading} className="unloadbtn">
+                Unload Model
+              </button>
+            </div>
           </div>
 
           <div className="chat-body">
