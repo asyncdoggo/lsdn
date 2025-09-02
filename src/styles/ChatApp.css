@@ -1,0 +1,108 @@
+.chat-page {
+    height: 100vh;
+    width: 100%;
+    padding: 20px;
+    background: #f4f4f8;
+    overflow: auto;
+}
+
+.chat-parent {
+    width: 80%;
+    display: flex;
+    justify-content: start;
+    align-items: center;
+}
+.chat-container {
+    width: 80%;
+    height: 600px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    overflow: auto;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.chat-header {
+    padding: 10px;
+    width: 100%;
+    background: #007bff;
+    color: white;
+    font-weight: bold;
+    display: flex;
+    flex-direction: column;
+}
+.model-selector {
+    margin-top: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.model-selector button {
+    margin: 3px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+}
+.model-selector button.selected {
+    background: #0056b3;
+    color: white;
+}
+.loading-text {
+    margin-left: 10px;
+    font-style: italic;
+}
+.chat-body {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    background: #f9f9f9;
+}
+.chat-message {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border-radius: 20px;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+.chat-message.user {
+    background: #007bff;
+    color: white;
+    align-self: flex-end;
+}
+.chat-message.assistant {
+    background: #e4e6eb;
+    color: black;
+    align-self: flex-start;
+}
+.chat-message.system {
+    background: #fffae6;
+    color: #333;
+    align-self: center;
+    text-align: center;
+}
+.chat-input {
+    display: flex;
+    border-top: 1px solid #ccc;
+}
+.chat-input input {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    outline: none;
+    font-size: 16px;
+}
+.chat-input button {
+    padding: 10px 15px;
+    border: none;
+    background: #007bff;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 2px;
+}
+.chat-input button:disabled {
+    background: #aaa;
+    cursor: not-allowed;
+}
