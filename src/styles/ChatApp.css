@@ -1,6 +1,6 @@
 .chat-page {
     height: 100vh;
-    width: 100%;
+    width: 80%;
     padding: 20px;
     background: #f4f4f8;
     overflow: auto;
@@ -32,23 +32,7 @@
     display: flex;
     flex-direction: column;
 }
-.model-selector {
-    margin-top: 5px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-.model-selector button {
-    margin: 3px;
-    padding: 5px 10px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-}
-.model-selector button.selected {
-    background: #0056b3;
-    color: white;
-}
+
 .loading-text {
     margin-left: 10px;
     font-style: italic;
@@ -105,4 +89,36 @@
 .chat-input button:disabled {
     background: #aaa;
     cursor: not-allowed;
+}
+
+.select-model{
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.select-model select {
+    margin-right: 10px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.select-model button {
+    padding: 5px 10px;
+    border: none;
+    background: #28a745;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.select-model button:disabled {
+    background: #aaa;
+    cursor: not-allowed;
+}
+
+.select-model .unloadbtn {
+    background: red;
+    margin-left: 10px;
 }

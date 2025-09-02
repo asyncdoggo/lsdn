@@ -1,7 +1,6 @@
 /* Controls panel styles */
 .controls-panel {
   width: 350px;
-  min-width: 350px;
   background: rgba(255, 255, 255, 0.02);
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
