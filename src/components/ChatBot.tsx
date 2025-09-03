@@ -117,7 +117,6 @@ export default function ChatBot({ parentWindowRef }: { parentWindowRef: React.Re
       <div className="chat-parent">
         <div className="chat-container" ref={containerRef}>
           <div className="chat-header">
-            <span>Chat</span>
             <div className="select-model">
               <select value={selectedModelIndex} onChange={e => setSelectedModelIndex(Number(e.target.value))} disabled={initializingModel}>
                 {availableModels.map((m, i) => (

@@ -15,10 +15,6 @@ engine.getInitProgressCallback
 
 export const availableModels = [
   {
-    name: "SmolLM-360M-Instruct-q0f16-MLC",
-    notes: "tiny, fast, and good for testing, incoherent responses.",
-  },
-  {
     name: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
     notes: "kinda larger, slower, slightly smart.",
   },
