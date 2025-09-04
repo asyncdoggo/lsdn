@@ -121,7 +121,7 @@ export default function ChatBot({ parentWindowRef }: { parentWindowRef: React.Re
               <select value={selectedModelIndex} onChange={e => setSelectedModelIndex(Number(e.target.value))} disabled={initializingModel}>
                 {availableModels.map((m, i) => (
                   <option key={i} value={i}>
-                    {m.name}
+                    {m.name} ({m.size})
                   </option>
                 ))}
               </select>

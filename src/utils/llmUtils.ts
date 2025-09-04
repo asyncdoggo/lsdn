@@ -15,25 +15,29 @@ engine.getInitProgressCallback
 
 export const availableModels = [
   {
-    name: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
-    notes: "kinda larger, slower, slightly smart.",
-  },
-  {
-    name: "gemma-2b-it-q4f16_1-MLC",
-    notes: "kinda larger. This guy talks using emojis lmao.",
+    name: "TinyLlama-1.1B-Chat-v0.4-q4f16_1-MLC",
+    size: "592 MB",
   },
   {
     name: "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-    notes: "small but smart.",
-  },
-  {
-    name: "TinyLlama-1.1B-Chat-v0.4-q4f16_1-MLC",
-    notes: "larger, slower, smart enough.",
+    size: "678 MB",
   },
   {
     name: "stablelm-2-zephyr-1_6b-q4f32_1-MLC-1k",
-    notes: "This guy is smart, kinda large and uncensored, be careful.",
-  }
+    size: "889 MB",
+  },
+  {
+    name: "Qwen3-0.6B-q0f32-MLC",
+    size: "1.1 GB",
+  },
+  {
+    name: "Hermes-3-Llama-3.2-3B-q4f16_1-MLC",
+    size: "1.7 GB", // in GB
+  },
+  {
+    name: "gemma-2b-it-q4f16_1-MLC",
+    size: "1.3 GB",
+  },
 ]
 
 export async function init(index: number) {    

@@ -112,3 +112,20 @@
     background: red;
     margin-left: 10px;
 }
+
+.chat-header{
+    user-select: none;
+}
+
+.chat-header *{
+    user-select: none;
+}
+
+.header{
+    user-select: none;
+}
+
+.floating-window{
+    min-width: 500px;
+    min-height: 300px;
+}
