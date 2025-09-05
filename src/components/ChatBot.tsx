@@ -151,11 +151,13 @@ export default function ChatBot({ parentWindowRef }: { parentWindowRef: React.Re
               onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
               disabled={!initialized || loading || initializingModel}
             />
-            <button onClick={handleSend} disabled={!initialized || loading || initializingModel}>
-              Send
-            </button>
-            <button onClick={handleInterrupt} disabled={!loading}>
-              Interrupt
+            <button
+              onClick={loading ? handleInterrupt : handleSend}
+              disabled={!initialized || initializingModel}
+              title={loading ? "Interrupt generation" : "Send message"}
+              className={loading ? "interrupt-mode" : ""}
+            >
+              {loading ? "⏹️" : "➤"}
             </button>
             <button onClick={handleClear} disabled={initializingModel || loading}>
               Clear

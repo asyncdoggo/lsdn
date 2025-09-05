@@ -1,4 +1,14 @@
+const presetResolutions = [
+  { label: '512x512', width: 512, height: 512 },
+  { label: '512x768', width: 512, height: 768 },
+  { label: '768x512', width: 768, height: 512 },
+];
+
 export default function ResolutionSection({settings, setSettings}: {settings: any, setSettings: any}) {
+  const applyPreset = (width: number, height: number) => {
+    setSettings({...settings, width, height});
+  };
+
   return (
     <div className="resolution-section">
       <div className="resolution-header">
@@ -7,6 +17,18 @@ export default function ResolutionSection({settings, setSettings}: {settings: an
         <div className="info-icon" title="Recommended resolutions: 512x512, 512x768, 768x512. At least one of width or height must be 512px due to model constraints."  id="infoIcon">
           <img src="info.png" alt="Info" />
         </div>
+      </div>
+      <div className="resolution-presets">
+        {presetResolutions.map((preset) => (
+          <button
+            key={preset.label}
+            className={`preset-button ${settings.width === preset.width && settings.height === preset.height ? 'active' : ''}`}
+            onClick={() => applyPreset(preset.width, preset.height)}
+            title={`Set resolution to ${preset.label}`}
+          >
+            {preset.label}
+          </button>
+        ))}
       </div>
       <div className="resolution-sliders">
         <div className="setting-group">
