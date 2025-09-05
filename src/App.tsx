@@ -45,8 +45,17 @@ function App() {
     <div style={{ height: "100vh" }}>
       <TextToImagePage />
       <div className="floating-window" ref={parentWindowRef}>
-        <div className='header' ref={floatingWindowHeaderRef} style={{ textAlign: 'center', fontWeight: 'bold', padding: '8px', borderBottom: '1px solid #ccc' }}>ChatBot</div>
-        <div className='content'>
+        <div className='floating-header' ref={floatingWindowHeaderRef}>
+          <div className="floating-title">
+            <div className="floating-icon">💬</div>
+            <span>AI Assistant</span>
+          </div>
+          <div className="floating-controls">
+            <button className="floating-minimize" title="Minimize">−</button>
+            <button className="floating-close" title="Close">×</button>
+          </div>
+        </div>
+        <div className='floating-content'>
           <ChatBot parentWindowRef={parentWindowRef} />
         </div>
       </div>
