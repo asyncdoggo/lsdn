@@ -5,7 +5,8 @@ import { setBaseUrl as setBaseUrlInManager } from "../core/modelManager";
 
 export default function ActionSection({ settings, setSettings, setBaseUrl, generator, setLoadingText, canvasRef }: { settings: any, setSettings: any, setBaseUrl: (model: string) => void, generator: TextToImageGenerator | null, setLoadingText: (text: string | undefined) => void, canvasRef: React.RefObject<HTMLCanvasElement | null> }) {
     const historyObject = useRef(History.getInstance());
-    const historyRef = useRef<HTMLSelectElement | null>(null);
+    const [historyEntries, setHistoryEntries] = useState<any[]>([]);
+    const [showHistoryGrid, setShowHistoryGrid] = useState(false);
 
     const [btnStates, setBtnStates] = useState({
         generate: false,
@@ -13,55 +14,11 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
         download: true
     });
 
+
+
     const clearHistory = async () => {
         historyObject.current.clear();
-        if (historyRef.current) {
-            historyRef.current.value = '';
-        }
-        historyRef.current!.innerHTML = '<option value="">History</option>';
-    };
-
-    const updateHistory = async () => {
-        const fullHistory = await historyObject.current.getEntries();
-        historyRef.current!.innerHTML = '<option value="">History</option>';
-
-        fullHistory.forEach(entry => {
-            const option = document.createElement('option');
-            option.value = entry.id;
-            option.textContent = `${entry.options.prompt.slice(0, 30)}... (${new Date(entry.timestamp).toLocaleTimeString()})`;
-            historyRef.current!.appendChild(option);
-        });
-    };
-
-    // Load history when a selection is made
-    const onHistoryChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-        const selectedId = event.target.value;
-        if (!selectedId) return;
-
-        const entry = await historyObject.current.getEntry(selectedId);
-        if (!entry) return;
-
-        // Restore all settings from history
-        setSettings({
-            prompt: entry.options.prompt,
-            negativePrompt: entry.options.negativePrompt || '',
-            steps: entry.options.steps,
-            guidance: entry.options.guidance,
-            scheduler: entry.options.scheduler || 'euler-karras',
-            seed: entry.options.seed,
-            useTiledVAE: entry.options.useTiledVAE || false,
-            lowMemoryMode: entry.options.lowMemoryMode || false,
-            randomize: entry.options.randomize || false,
-            width: entry.options.width,
-            height: entry.options.height,
-            tileSize: entry.options.tileSize,
-            model: entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web',
-            previewUrl: entry.previewUrl || ''
-        })
-
-        setBaseUrl(entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web');
-        setBaseUrlInManager(entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web');
-        event.target.value = ''; // Reset selection
+        updateHistoryEntries();
     };
 
 
@@ -107,7 +64,7 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
         setSettings({ ...settings, seed: actualSeed });
 
         const historyId = await historyObject.current.addEntry(settings);
-        updateHistory()
+        updateHistoryEntries();
 
         try {
             const result = await generator.generateImage(
@@ -150,12 +107,13 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
                     // Update history entry with final image
                     const previewUrl = canvasRef.current?.toDataURL('image/png') || '';
                     historyObject.current.updateEntry(historyId, { previewUrl });
-                    updateHistory();
+                    updateHistoryEntries();
                 }
             } catch (error) {
                 console.error('Error updating history entry:', error);
                 alert('Error updating history entry with preview image.');
             }
+            
             
 
         } catch (error) {
@@ -192,39 +150,151 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
         link.click();
     };
 
+    const updateHistoryEntries = async () => {
+        const fullHistory = await historyObject.current.getEntries();
+        setHistoryEntries(fullHistory);
+    };
+
+    const loadHistoryEntry = async (entry: any) => {
+        setSettings({
+            prompt: entry.options.prompt,
+            negativePrompt: entry.options.negativePrompt || '',
+            steps: entry.options.steps,
+            guidance: entry.options.guidance,
+            scheduler: entry.options.scheduler || 'euler-karras',
+            seed: entry.options.seed,
+            useTiledVAE: entry.options.useTiledVAE || false,
+            lowMemoryMode: entry.options.lowMemoryMode || false,
+            randomize: entry.options.randomize || false,
+            width: entry.options.width,
+            height: entry.options.height,
+            tileSize: entry.options.tileSize,
+            model: entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web',
+            previewUrl: entry.previewUrl || ''
+        });
+
+        setBaseUrl(entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web');
+        setBaseUrlInManager(entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web');
+        setShowHistoryGrid(false);
+    };
+
     useEffect(() => {
-        updateHistory();
+        updateHistoryEntries();
     }, []);
 
     return (
         <div className="action-section">
-            <div className="history-controls">
-                <select id="history" className="history-select" onChange={onHistoryChange} ref={historyRef}>
-                    <option value="">History</option>
-                </select>
-                <button id="clearHistory" title="Clear History" className="clear-history-btn" type="button" onClick={clearHistory}>
-                    <span className="btn-icon">🗑️</span>
-                </button>
+            {/* History Section */}
+            <div className="history-section">
+                <div className="history-header">
+                    <button
+                        className="history-toggle-btn"
+                        onClick={() => setShowHistoryGrid(!showHistoryGrid)}
+                        title="Toggle History Thumbnails"
+                    >
+                        <span className="btn-icon">🖼️</span>
+                        <span className="btn-text">History ({historyEntries.length})</span>
+                        <span className={`toggle-icon ${showHistoryGrid ? 'expanded' : ''}`}>▼</span>
+                    </button>
+                    <button
+                        className="clear-history-btn"
+                        title="Clear History (Ctrl+Shift+Del)"
+                        onClick={clearHistory}
+                    >
+                        <span className="btn-icon">🗑️</span>
+                    </button>
+                </div>
+
+                {showHistoryGrid && (
+                    <div className="history-grid">
+                        {historyEntries.length === 0 ? (
+                            <div className="empty-history">
+                                <span className="empty-icon">📭</span>
+                                <p>No history yet</p>
+                                <small>Generated images will appear here</small>
+                            </div>
+                        ) : (
+                            historyEntries.map((entry) => (
+                                <div
+                                    key={entry.id}
+                                    className="history-item"
+                                    onClick={() => loadHistoryEntry(entry)}
+                                    title={`${entry.options.prompt.slice(0, 50)}...`}
+                                >
+                                    <div className="history-thumbnail">
+                                        {entry.previewUrl ? (
+                                            <img
+                                                src={entry.previewUrl}
+                                                alt="Generated image"
+                                                loading="lazy"
+                                            />
+                                        ) : (
+                                            <div className="placeholder-thumbnail">
+                                                <span>🖼️</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="history-info">
+                                        <div className="history-prompt">
+                                            {entry.options.prompt.slice(0, 25)}...
+                                        </div>
+                                        <div className="history-meta">
+                                            {new Date(entry.timestamp).toLocaleTimeString()}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                )}
             </div>
-            <div className="action-buttons">
-                <button id="generate" className="generate-btn" type="button" disabled={btnStates.generate} onClick={generateImage}>
-                    <span className="btn-icon">✨</span>
-                    <span className="btn-text">{btnStates.generate ? 'Generating...' : 'Generate'}</span>
-                </button>
-                <button id="stop" className="stop-btn" type="button" disabled={btnStates.stop} onClick={stopGeneration}>
-                    <span className="btn-icon">⏹️</span>
-                    <span className="btn-text">
-                        {
-                            generator?.isGenerating
+
+            {/* Action Buttons */}
+            <div className="action-buttons-section">
+                <div className="action-buttons">
+                    <button
+                        id="generate"
+                        className="generate-btn"
+                        type="button"
+                        disabled={btnStates.generate}
+                        onClick={generateImage}
+                        title="Generate Image"
+                    >
+                        <span className="btn-icon">{btnStates.generate ? '⏳' : '✨'}</span>
+                        <span className="btn-text">
+                            {btnStates.generate ? 'Generating...' : 'Generate'}
+                        </span>
+                    </button>
+
+                    <button
+                        id="stop"
+                        className="stop-btn"
+                        type="button"
+                        disabled={btnStates.stop}
+                        onClick={stopGeneration}
+                        title="Stop Generation"
+                    >
+                        <span className="btn-icon">⏹️</span>
+                        <span className="btn-text">
+                            {generator?.isGenerating
                                 ? (btnStates.stop ? 'Stopping...' : 'Stop')
                                 : 'Stop'
-                        }
-                    </span>
-                </button>
-                <button id="download" className="download-btn" type="button" disabled={btnStates.download} onClick={downloadImage}>
-                    <span className="btn-icon">💾</span>
-                    <span className="btn-text">Download</span>
-                </button>
+                            }
+                        </span>
+                    </button>
+
+                    <button
+                        id="download"
+                        className="download-btn"
+                        type="button"
+                        disabled={btnStates.download}
+                        onClick={downloadImage}
+                        title="Download Image"
+                    >
+                        <span className="btn-icon">💾</span>
+                        <span className="btn-text">Download</span>
+                    </button>
+                </div>
             </div>
         </div>
     )

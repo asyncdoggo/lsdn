@@ -65,6 +65,50 @@ function TextToImagePage() {
     };
   }, []);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ctrl+Enter to generate
+      if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault();
+        const generateBtn = document.getElementById('generate') as HTMLButtonElement;
+        if (generateBtn && !generateBtn.disabled) {
+          generateBtn.click();
+        }
+      }
+
+      // Ctrl+Shift+C to clear prompts
+      if (event.ctrlKey && event.shiftKey && event.key === 'C') {
+        event.preventDefault();
+        setSettings({
+          ...settings,
+          prompt: '',
+          negativePrompt: ''
+        });
+      }
+
+      // Escape to stop generation
+      if (event.key === 'Escape') {
+        const stopBtn = document.getElementById('stop') as HTMLButtonElement;
+        if (stopBtn && !stopBtn.disabled) {
+          stopBtn.click();
+        }
+      }
+
+      // Ctrl+S to download (if available)
+      if (event.ctrlKey && event.key === 's') {
+        event.preventDefault();
+        const downloadBtn = document.getElementById('download') as HTMLButtonElement;
+        if (downloadBtn && !downloadBtn.disabled) {
+          downloadBtn.click();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [settings]);
+
   return (
     <>
       <div className="app-container">
