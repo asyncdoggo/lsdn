@@ -1,4 +1,4 @@
-# LSDN
+# ToI
 
 URL: [https://lsdn.netlify.app](https://lsdn.netlify.app)
 

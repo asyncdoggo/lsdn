@@ -16,7 +16,7 @@ export default function Header() {
               </defs>
             </svg>
           </div>
-          <h1>LSDN</h1>
+          <h1>ToI</h1>
         </div>
         <p className="app-subtitle">Generate images with text using your GPU</p>
         <div className="header-accent">
