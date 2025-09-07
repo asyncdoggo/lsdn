@@ -282,6 +282,10 @@
   overflow: hidden;
 }
 
+.floating-icon{
+  user-select: none;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;

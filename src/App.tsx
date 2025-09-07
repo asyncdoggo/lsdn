@@ -116,7 +116,7 @@ function App() {
           <ChatBot parentWindowRef={parentWindowRef} />
         </div>
       </div>
-      <div ref={floatingCircleRef} style={{ display: isClosed ? 'flex' : 'none', position: 'absolute', left: '10px', top: '10px', width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#007bff', color: 'white', alignItems: 'center', justifyContent: 'center', cursor: 'move', zIndex: 1000 }}>
+      <div className="floating-icon" ref={floatingCircleRef} style={{ display: isClosed ? 'flex' : 'none', position: 'absolute', left: '10px', top: '10px', width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#007bff', color: 'white', alignItems: 'center', justifyContent: 'center', cursor: 'move', zIndex: 1000 }}>
         <span style={{ fontSize: '20px' }}>💬</span>
       </div>
     </div>
