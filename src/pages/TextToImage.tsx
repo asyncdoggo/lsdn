@@ -106,11 +106,11 @@ function TextToImagePage() {
 
   return (
     <>
-      <div className="app-container">
+      <div className="h-screen w-screen flex flex-col m-0 p-0">
         <Header />
 
-        <div className="main-content">
-          <div className="controls-panel">
+        <div className="flex-1 flex h-[calc(100vh-5rem)] overflow-auto">
+        <div className="w-[350px] bg-black/20 border-r border-white/5 backdrop-blur-[10px] flex flex-col p-6 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
             <ResolutionSection settings={settings} setSettings={setSettings} />
             <TextToImageSection settings={settings} setSettings={setSettings} generator={ttoiRef.current} />
             <ActionSection settings={settings} setSettings={setSettings} setBaseUrl={setBaseUrl} generator={ttoiRef.current} setLoadingText={setLoadingText} canvasRef={canvasRef} />

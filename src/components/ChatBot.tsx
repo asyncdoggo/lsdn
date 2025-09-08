@@ -115,16 +115,16 @@ export default function ChatBot({ parentWindowRef }: { parentWindowRef: React.Re
     <div className="h-full bg-transparent flex flex-col">
       <div className="h-full flex flex-col">
         <div className="flex-1 flex flex-col bg-transparent rounded-none overflow-hidden" ref={containerRef}>
-          <div className="p-4 bg-black/20 backdrop-blur-[10px] border-b border-white/10 flex flex-col gap-3">
+          <div className="p-4 bg-[var(--color-bg-secondary)] backdrop-blur-[10px] border-b border-[rgba(255,255,255,0.1)] flex flex-col gap-3">
             <div className="flex items-center gap-2 flex-wrap">
               <select
                 value={selectedModelIndex}
                 onChange={e => setSelectedModelIndex(Number(e.target.value))}
                 disabled={initializingModel}
-                className="px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white/90 text-sm cursor-pointer transition-all min-w-[120px] hover:bg-white/15 hover:border-white/30 focus:outline-none focus:border-purple-500 focus:shadow-[0_0_0_2px_rgba(139,92,246,0.2)]"
+                className="px-3 py-2 bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.2)] rounded-lg text-[var(--color-text-primary)] text-sm cursor-pointer transition-all min-w-[120px] hover:bg-[rgba(255,255,255,0.15)] hover:border-[rgba(255,255,255,0.3)] focus:outline-none focus:border-purple-500 focus:shadow-[0_0_0_2px_rgba(139,92,246,0.2)]"
               >
                 {availableModels.map((m, i) => (
-                  <option key={i} value={i} className="bg-gray-800 text-white/90">
+                  <option key={i} value={i} className="bg-gray-800 text-[var(--color-text-primary)]">
                     {m.name} ({m.size})
                   </option>
                 ))}
@@ -132,7 +132,7 @@ export default function ChatBot({ parentWindowRef }: { parentWindowRef: React.Re
               <button
                 onClick={() => handleInitModel(selectedModelIndex)}
                 disabled={initializingModel || initialized}
-                className="px-4 py-2 border-none rounded-lg text-sm font-semibold cursor-pointer transition-all flex items-center gap-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
+                className="px-4 py-2 border-none rounded-lg text-sm font-semibold cursor-pointer transition-all flex items-center gap-1.5 bg-gradient-to-r from-[var(--color-accent-primary)] to-[var(--color-accent-primary-hover)] text-[var(--color-text-primary)] hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
               >
                 Load Model
               </button>
@@ -146,23 +146,23 @@ export default function ChatBot({ parentWindowRef }: { parentWindowRef: React.Re
             </div>
           </div>
 
-          <div className="flex-1 p-4 overflow-y-auto bg-transparent flex flex-col gap-3 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-            {chatMessages.map((msg, i) => (
-              <div
-                key={i}
-                className={`p-3 px-4 rounded-xl max-w-[85%] break-words leading-relaxed text-sm animate-in slide-in-from-bottom-2 duration-300 relative ${
-                  msg.role === 'user'
-                    ? 'bg-gradient-to-br from-purple-500 to-purple-700 text-white self-end ml-auto shadow-lg shadow-purple-500/30'
-                    : msg.role === 'assistant'
-                    ? 'bg-white/5 text-white/90 self-start border border-white/10 backdrop-blur-[10px]'
-                    : 'bg-amber-500/10 text-amber-400 self-center text-center border border-amber-400/20 text-xs font-medium'
-                }`}
-                dangerouslySetInnerHTML={{ __html: msg.content }}
-              >
-              </div>
-            ))}
-            <div ref={chatEndRef}></div>
-          </div>
+            <div className="flex-1 p-4 overflow-y-auto bg-transparent flex flex-col gap-3 scrollbar-thin scrollbar-thumb-[rgba(255,255,255,0.2)] scrollbar-track-transparent">
+              {chatMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`p-3 px-4 rounded-xl max-w-[85%] break-words leading-relaxed text-sm animate-in slide-in-from-bottom-2 duration-300 relative ${
+                    msg.role === 'user'
+                      ? 'bg-gradient-to-br from-indigo-500 to-indigo-700 text-[var(--color-text-primary)] self-end ml-auto shadow-lg shadow-indigo-500/30'
+                      : msg.role === 'assistant'
+                      ? 'bg-[rgba(255,255,255,0.05)] text-[var(--color-text-primary)] self-start border border-[rgba(255,255,255,0.1)] backdrop-blur-[10px]'
+                      : 'bg-amber-500/10 text-amber-400 self-center text-center border border-amber-400/20 text-xs font-medium'
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: msg.content }}
+                >
+                </div>
+              ))}
+              <div ref={chatEndRef}></div>
+            </div>
 
           <div className="flex gap-2 p-4 bg-black/20 backdrop-blur-[10px] border-t border-white/10">
             <input

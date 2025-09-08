@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { History } from "../utils/history";
 import type { TextToImageGenerator } from "../textToImageGenerator";
-import { setBaseUrl as setBaseUrlInManager } from "../core/modelManager";
+import HistorySection from "./HistorySection";
 
 export default function ActionSection({ settings, setSettings, setBaseUrl, generator, setLoadingText, canvasRef }: { settings: any, setSettings: any, setBaseUrl: (model: string) => void, generator: TextToImageGenerator | null, setLoadingText: (text: string | undefined) => void, canvasRef: React.RefObject<HTMLCanvasElement | null> }) {
     const historyObject = useRef(History.getInstance());
@@ -14,12 +14,6 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
         download: true
     });
 
-
-
-    const clearHistory = async () => {
-        historyObject.current.clear();
-        updateHistoryEntries();
-    };
 
 
     const generateImage = async () => {
@@ -155,127 +149,50 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
         setHistoryEntries(fullHistory);
     };
 
-    const loadHistoryEntry = async (entry: any) => {
-        setSettings({
-            prompt: entry.options.prompt,
-            negativePrompt: entry.options.negativePrompt || '',
-            steps: entry.options.steps,
-            guidance: entry.options.guidance,
-            scheduler: entry.options.scheduler || 'euler-karras',
-            seed: entry.options.seed,
-            useTiledVAE: entry.options.useTiledVAE || false,
-            lowMemoryMode: entry.options.lowMemoryMode || false,
-            randomize: entry.options.randomize || false,
-            width: entry.options.width,
-            height: entry.options.height,
-            tileSize: entry.options.tileSize,
-            model: entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web',
-            previewUrl: entry.previewUrl || ''
-        });
-
-        setBaseUrl(entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web');
-        setBaseUrlInManager(entry.options.model || 'subpixel/small-stable-diffusion-v0-onnx-ort-web');
-        setShowHistoryGrid(false);
-    };
-
     useEffect(() => {
         updateHistoryEntries();
     }, []);
 
     return (
         <div className="action-section">
-            {/* History Section */}
-            <div className="history-section">
-                <div className="history-header">
-                    <button
-                        className="history-toggle-btn"
-                        onClick={() => setShowHistoryGrid(!showHistoryGrid)}
-                        title="Toggle History Thumbnails"
-                    >
-                        <span className="btn-icon">🖼️</span>
-                        <span className="btn-text">History ({historyEntries.length})</span>
-                        <span className={`toggle-icon ${showHistoryGrid ? 'expanded' : ''}`}>▼</span>
-                    </button>
-                    <button
-                        className="clear-history-btn"
-                        title="Clear History (Ctrl+Shift+Del)"
-                        onClick={clearHistory}
-                    >
-                        <span className="btn-icon">🗑️</span>
-                    </button>
-                </div>
-
-                {showHistoryGrid && (
-                    <div className="history-grid">
-                        {historyEntries.length === 0 ? (
-                            <div className="empty-history">
-                                <span className="empty-icon">📭</span>
-                                <p>No history yet</p>
-                                <small>Generated images will appear here</small>
-                            </div>
-                        ) : (
-                            historyEntries.map((entry) => (
-                                <div
-                                    key={entry.id}
-                                    className="history-item"
-                                    onClick={() => loadHistoryEntry(entry)}
-                                    title={`${entry.options.prompt.slice(0, 50)}...`}
-                                >
-                                    <div className="history-thumbnail">
-                                        {entry.previewUrl ? (
-                                            <img
-                                                src={entry.previewUrl}
-                                                alt="Generated image"
-                                                loading="lazy"
-                                            />
-                                        ) : (
-                                            <div className="placeholder-thumbnail">
-                                                <span>🖼️</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="history-info">
-                                        <div className="history-prompt">
-                                            {entry.options.prompt.slice(0, 25)}...
-                                        </div>
-                                        <div className="history-meta">
-                                            {new Date(entry.timestamp).toLocaleTimeString()}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                )}
-            </div>
+            <HistorySection
+                historyObject={historyObject}
+                historyEntries={historyEntries}
+                setHistoryEntries={setHistoryEntries}
+                showHistoryGrid={showHistoryGrid}
+                setShowHistoryGrid={setShowHistoryGrid}
+                updateHistoryEntries={updateHistoryEntries}
+                setSettings={setSettings}
+                setBaseUrl={setBaseUrl}
+            />
 
             {/* Action Buttons */}
-            <div className="action-buttons-section">
-                <div className="action-buttons">
+            <div className="action-buttons-section border-t border-[rgba(255,255,255,0.1)] pt-4">
+                <div className="action-buttons flex flex-col gap-3 mb-3">
                     <button
                         id="generate"
-                        className="generate-btn"
+                        className="generate-btn relative flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-[var(--color-success)] to-[var(--color-success)] hover:from-[var(--color-success)] hover:to-[var(--color-success)] disabled:from-[var(--color-success)] disabled:to-[var(--color-success)] disabled:opacity-60 disabled:cursor-not-allowed text-[var(--color-text-primary)] font-semibold text-base rounded-lg cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-lg disabled:transform-none disabled:shadow-none backdrop-blur-[10px] overflow-hidden"
                         type="button"
                         disabled={btnStates.generate}
                         onClick={generateImage}
                         title="Generate Image"
                     >
-                        <span className="btn-icon">{btnStates.generate ? '⏳' : '✨'}</span>
-                        <span className="btn-text">
+                        <span className="btn-icon text-lg">{btnStates.generate ? '⏳' : '✨'}</span>
+                        <span className="btn-text font-semibold">
                             {btnStates.generate ? 'Generating...' : 'Generate'}
                         </span>
                     </button>
 
                     <button
                         id="stop"
-                        className="stop-btn"
+                        className="stop-btn relative flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 disabled:from-red-600 disabled:to-red-600 disabled:opacity-60 disabled:cursor-not-allowed text-[var(--color-text-primary)] font-semibold text-base rounded-lg cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-lg disabled:transform-none disabled:shadow-none backdrop-blur-[10px] overflow-hidden"
                         type="button"
                         disabled={btnStates.stop}
                         onClick={stopGeneration}
                         title="Stop Generation"
                     >
-                        <span className="btn-icon">⏹️</span>
-                        <span className="btn-text">
+                        <span className="btn-icon text-lg">⏹️</span>
+                        <span className="btn-text font-semibold">
                             {generator?.isGenerating
                                 ? (btnStates.stop ? 'Stopping...' : 'Stop')
                                 : 'Stop'
@@ -285,14 +202,14 @@ export default function ActionSection({ settings, setSettings, setBaseUrl, gener
 
                     <button
                         id="download"
-                        className="download-btn"
+                        className="download-btn relative flex items-center justify-center gap-2 p-3 bg-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.2)] disabled:bg-[rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed text-[rgba(255,255,255,0.8)] hover:text-[var(--color-text-primary)] font-semibold text-base rounded-lg cursor-pointer transition-all duration-300 transform hover:-translate-y-0.5 hover:shadow-lg disabled:transform-none disabled:shadow-none border-2 border-[rgba(255,255,255,0.2)] hover:border-[rgba(255,255,255,0.3)] backdrop-blur-[10px] overflow-hidden"
                         type="button"
                         disabled={btnStates.download}
                         onClick={downloadImage}
                         title="Download Image"
                     >
-                        <span className="btn-icon">💾</span>
-                        <span className="btn-text">Download</span>
+                        <span className="btn-icon text-lg">💾</span>
+                        <span className="btn-text font-semibold">Download</span>
                     </button>
                 </div>
             </div>
