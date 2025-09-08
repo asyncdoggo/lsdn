@@ -11,13 +11,15 @@
   },
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.79",
+    "@tailwindcss/vite": "^4.1.13",
     "@xenova/transformers": "^2.17.2",
     "isomorphic-dompurify": "^2.26.0",
     "marked": "^16.2.1",
     "onnxruntime-web": "^1.22.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-resizable-panels": "^3.0.5"
+    "react-resizable-panels": "^3.0.5",
+    "tailwindcss": "^4.1.13"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

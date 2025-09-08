@@ -1,8 +1,3 @@
-import './../styles/TextToImage.css'
-import "../styles/base.css"
-import "../styles/controls.css"
-import "../styles/layout.css"
-import "../styles/responsive.css"
 import Header from '../components/Header'
 import ResolutionSection from '../components/ResolutionSection'
 import TextToImageSection from '../components/textToImageSection'

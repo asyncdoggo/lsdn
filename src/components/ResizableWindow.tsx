@@ -1,5 +1,4 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import "../styles/resizableWindow.css";
 
 interface ResizableWindowProps {
   left: React.ReactNode;

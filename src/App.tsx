@@ -99,25 +99,60 @@ function App() {
   }
 
   return (
-    <div style={{ height: "100vh" }}>
+    <div className="h-screen">
       <TextToImagePage />
-      <div className="floating-window" ref={parentWindowRef} style={{ display: isClosed ? 'none' : 'block' }}>
-        <div className='floating-header' ref={floatingWindowHeaderRef}>
-          <div className="floating-title">
-            <div className="floating-icon">💬</div>
+      <div
+        className="fixed bottom-5 right-5 w-[420px] h-[400px] min-w-[420px] border border-white/10 rounded-xl shadow-2xl bg-black/95 backdrop-blur-xl z-[1000] resize overflow-hidden animate-in slide-in-from-bottom-5"
+        ref={parentWindowRef}
+        style={{ display: isClosed ? 'none' : 'block' }}
+      >
+        <div
+          className="flex items-center justify-between p-4 border-b border-white/10 bg-black/20 backdrop-blur-[10px] cursor-move user-select-none"
+          ref={floatingWindowHeaderRef}
+        >
+          <div className="flex items-center gap-2 font-semibold text-white/90 text-sm">
+            <div className="text-lg opacity-80">💬</div>
             <span>AI Assistant</span>
           </div>
-          <div className="floating-controls">
-            <button onClick={handleMinimize} className="floating-minimize" title="Minimize">-</button>
-            <button className="floating-close" title="Close" onClick={() => { const windowElement = parentWindowRef.current; const circleElement = floatingCircleRef.current; if (windowElement && circleElement) { circleElement.style.left = `${windowElement.offsetLeft}px`; circleElement.style.top = `${windowElement.offsetTop}px`; } setIsClosed(true); }}>x</button>
+          <div className="flex gap-1">
+            <button
+              onClick={handleMinimize}
+              className="w-6 h-6 border-none rounded bg-white/10 text-white/70 cursor-pointer transition-all hover:bg-amber-500/20 hover:text-amber-400"
+              title="Minimize"
+            >
+              -
+            </button>
+            <button
+              className="w-6 h-6 border-none rounded bg-white/10 text-white/70 cursor-pointer transition-all hover:bg-red-500/20 hover:text-red-400"
+              title="Close"
+              onClick={() => {
+                const windowElement = parentWindowRef.current;
+                const circleElement = floatingCircleRef.current;
+                if (windowElement && circleElement) {
+                  circleElement.style.left = `${windowElement.offsetLeft}px`;
+                  circleElement.style.top = `${windowElement.offsetTop}px`;
+                }
+                setIsClosed(true);
+              }}
+            >
+              x
+            </button>
           </div>
         </div>
-        <div className='floating-content'>
+        <div className="h-[calc(100%-57px)] overflow-hidden">
           <ChatBot parentWindowRef={parentWindowRef} />
         </div>
       </div>
-      <div className="floating-icon" ref={floatingCircleRef} style={{ display: isClosed ? 'flex' : 'none', position: 'absolute', left: '10px', top: '10px', width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#007bff', color: 'white', alignItems: 'center', justifyContent: 'center', cursor: 'move', zIndex: 1000 }}>
-        <span style={{ fontSize: '20px' }}>💬</span>
+      <div
+        className="fixed w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center cursor-move z-[1000] select-none"
+        ref={floatingCircleRef}
+        style={{
+          display: isClosed ? 'flex' : 'none',
+          left: '10px',
+          top: '10px'
+        }}
+      >
+        <span className="text-xl">💬</span>
       </div>
     </div>
   );
